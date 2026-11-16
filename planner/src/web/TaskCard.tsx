@@ -175,7 +175,7 @@ function Detail({ task, onReschedule, onEdit }: { task: Task; onReschedule: () =
         onChange={(e) => setNotes(e.target.value)}
         onBlur={() => notes !== task.notes && patchTask(task.id, { notes })}
         placeholder="Notes"
-        rows={Math.min(8, Math.max(2, notes.split('\n').length))}
+        rows={Math.min(10, Math.max(2, notes.split('\n').reduce((a, l) => a + Math.max(1, Math.ceil(l.length / 38)), 0)))}
         className="mt-3 w-full resize-none rounded-xl bg-bg px-3 py-2.5 text-[14px] leading-relaxed placeholder:text-muted/70"
       />
 

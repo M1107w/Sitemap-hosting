@@ -1,0 +1,7 @@
+# Free automatic HTTPS from Let's Encrypt (needed for iPhone notifications).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8787 {
+		flush_interval -1
+	}
+}

@@ -55,6 +55,25 @@ export class OllamaProvider implements Provider {
   }
 }
 
+/** Pre-process the call's prompt while the greeting is spoken, so the first reply is quicker. */
+export async function warmUp(p: Provider, system: string) {
+  if (!(p instanceof OllamaProvider)) return;
+  await fetch(`${p.url}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: p.model,
+      messages: [{ role: 'system', content: system }],
+      tools: TOOLS,
+      stream: false,
+      think: false,
+      keep_alive: '30m',
+      options: { num_predict: 1, num_ctx: 8192 },
+    }),
+    signal: AbortSignal.timeout(180_000),
+  }).catch(() => {});
+}
+
 export async function ollamaUp(url = process.env.OLLAMA_URL || 'http://127.0.0.1:11434'): Promise<boolean> {
   try {
     const r = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(1500) });
@@ -350,7 +369,7 @@ function hours(min: number) {
   return `${h} hour${h === 1 ? '' : 's'}`;
 }
 
-function systemPrompt(core: Core, call: CallLog): string {
+export function systemPrompt(core: Core, call: CallLog): string {
   const s = core.settings();
   const now = core.now();
   const z = zoned(now, s.timezone);
@@ -365,18 +384,19 @@ function systemPrompt(core: Core, call: CallLog): string {
   }
   const focus = call.taskId ? core.db.task(call.taskId) : null;
   return [
-    `You are the user's planning assistant on a short voice ${call.kind === 'debrief' ? 'debrief' : 'check-in'} call, like JARVIS: calm, brief, a bit casual.`,
-    `Now: ${WEEKDAYS[z.weekday]} ${z.date} ${z.time} (${s.timezone}).`,
-    focus ? `This check-in is about: ${fmtTask(focus)}` : '',
-    'Their plan:',
-    upcoming.join('\n'),
-    '',
+    `You are the user's planning assistant on a short voice call, like JARVIS: calm, brief, a bit casual.`,
     'Rules:',
     '- Listen to what they are doing and UPDATE THE PLAN WITH TOOLS without asking permission for obvious changes (done → complete_task, "later/tomorrow" → reschedule_task, new thing → create_task, started → mark_started).',
     '- Use task ids from the list above. Dates as YYYY-MM-DD, times as HH:mm 24h.',
     "- If they are now doing something unplanned, add it as a task and move what it displaces.",
     '- Replies are spoken aloud: 1–2 short sentences, no lists, no markdown, no emojis.',
     '- After changes, say briefly what you changed. If they say bye / that\'s all, wish them well in one line.',
+    '',
+    `Call type: ${call.kind === 'debrief' ? 'debrief (go through what is coming up)' : 'check-in (how is it going?)'}`,
+    `Now: ${WEEKDAYS[z.weekday]} ${z.date} ${z.time} (${s.timezone}).`,
+    focus ? `This check-in is about: ${fmtTask(focus)}` : '',
+    'Their plan (the conversation may have changed it since; tool results are the truth):',
+    upcoming.join('\n'),
   ]
     .filter(Boolean)
     .join('\n');
@@ -390,7 +410,8 @@ export interface TurnResult {
 
 export async function runTurn(core: Core, call: CallLog, userText: string, provider: Provider | null): Promise<TurnResult> {
   if (!provider) return fallbackTurn(core, call, userText);
-  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt(core, call) }];
+  if (!call.system) call.system = systemPrompt(core, call);
+  const messages: ChatMessage[] = [{ role: 'system', content: call.system }];
   for (const m of call.transcript.slice(-12)) messages.push({ role: m.role, content: m.text });
   messages.push({ role: 'user', content: userText });
   const changes: CallChange[] = [];

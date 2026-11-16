@@ -89,6 +89,8 @@ export interface CallLog {
   endedAt: number | null;
   transcript: { role: 'user' | 'assistant'; text: string }[];
   changes: CallChange[];
+  /** model prompt snapshot for this call (kept stable so the LLM can reuse its cache) */
+  system?: string;
 }
 
 export interface CheckinState {

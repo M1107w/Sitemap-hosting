@@ -6,12 +6,14 @@ import crypto from 'node:crypto';
 import type { Core } from './core';
 import type { CallLog, Debrief, ServerEvent, Settings, Task } from '../shared/types';
 import { nextWake } from './logic';
-import { greeting, ollamaUp, OllamaProvider, runTurn, type Provider } from './assistant';
+import { greeting, ollamaUp, OllamaProvider, runTurn, systemPrompt, warmUp, type Provider } from './assistant';
 import { uid } from '../shared/time';
 import { seedTasks } from './seed';
 
 const WHISPER_URL = process.env.WHISPER_URL || '';
 const TTS_URL = process.env.TTS_URL || '';
+
+const pub = ({ system: _s, ...c }: CallLog) => c;
 
 export function createApp(core: Core, opts: { provider?: Provider | null } = {}) {
   const app = new Hono();
@@ -95,7 +97,7 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
       debriefs: core.db.debriefs(),
       settings: core.settings(),
       checkin: core.checkin(),
-      calls: core.db.calls(20),
+      calls: core.db.calls(20).map(pub),
       vapidPublicKey: core.vapidPublicKey,
       serverNow: core.now(),
     }),
@@ -181,7 +183,7 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
   });
 
   // ---------------------------------------------------------- calls
-  app.get('/api/calls', (c) => c.json(core.db.calls(50)));
+  app.get('/api/calls', (c) => c.json(core.db.calls(50).map(pub)));
 
   app.post('/api/call/start', async (c) => {
     const { kind, taskId, debriefId } = await c.req.json();
@@ -196,6 +198,7 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     };
     const text = greeting(core, call);
     call.transcript.push({ role: 'assistant', text });
+    call.system = systemPrompt(core, call);
     core.db.putCall(call);
     if (debriefId) {
       const list = core.db.debriefs().map((d) => (d.id === debriefId ? { ...d, status: 'done' as const, updatedAt: core.now() } : d));
@@ -203,7 +206,8 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
       core.emit({ type: 'debriefs', debriefs: list });
     }
     const p = await provider();
-    return c.json({ call, greeting: text, ai: p?.name ?? 'fallback' });
+    if (p) warmUp(p, call.system);
+    return c.json({ call: pub(call), greeting: text, ai: p?.name ?? 'fallback' });
   });
 
   app.post('/api/call/:id/turn', async (c) => {
@@ -221,8 +225,8 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     call.transcript.push({ role: 'user', text: String(text) }, { role: 'assistant', text: result.reply });
     call.changes.push(...result.changes);
     core.db.putCall(call);
-    core.emit({ type: 'call', call });
-    return c.json({ ...result, call });
+    core.emit({ type: 'call', call: pub(call) });
+    return c.json({ ...result, call: pub(call) });
   });
 
   app.post('/api/call/:id/end', (c) => {
@@ -230,8 +234,8 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     if (!call) return c.json({ error: 'no call' }, 404);
     call.endedAt = core.now();
     core.db.putCall(call);
-    core.emit({ type: 'call', call });
-    return c.json(call);
+    core.emit({ type: 'call', call: pub(call) });
+    return c.json(pub(call));
   });
 
   // ---------------------------------------------------------- voice I/O
@@ -259,7 +263,7 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     if (!TTS_URL) return c.json({ error: 'no tts' }, 501);
     const { text } = await c.req.json();
     try {
-      const r = await fetch(`${TTS_URL}/tts`, {
+      const r = await fetch(`${TTS_URL}/synthesize`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text: String(text).slice(0, 1000) }),

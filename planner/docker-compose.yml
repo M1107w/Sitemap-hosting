@@ -1,0 +1,65 @@
+# Everything for the planner on one machine. `docker compose up -d`
+# Services: caddy (HTTPS) → app (planner) → ollama (AI), whisper (speech→text), piper (text→speech)
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      WHISPER_URL: http://whisper:8080
+      TTS_URL: http://piper:5000
+      COOKIE_SECURE: "1"
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:planner@example.com}
+    volumes:
+      - ./data:/data
+    depends_on: [ollama, whisper, piper]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env, e.g. myplanner.duckdns.org}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"   # keep the model in RAM: no cold starts on calls
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama:/root/.ollama
+
+  # one-shot: downloads the AI model the first time (a few GB), then exits
+  ollama-pull:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "sleep 5 && ollama pull ${OLLAMA_MODEL:-qwen3:4b}"]
+    depends_on: [ollama]
+    restart: "no"
+
+  whisper:
+    build:
+      context: ./deploy/whisper
+      args:
+        WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
+    restart: unless-stopped
+
+  piper:
+    build:
+      context: ./deploy/piper
+      args:
+        VOICE: ${PIPER_VOICE:-en_GB-alan-medium}
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  caddy_data:
+  caddy_config:

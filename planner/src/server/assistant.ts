@@ -221,7 +221,7 @@ export function execTool(core: Core, name: string, args: Record<string, unknown>
         updatedAt: now,
       };
       core.saveTask(t);
-      return { result: `Created ${fmtTask(t)}`, change: { tool: name, summary: `Added “${t.title}” (${t.date}${t.dueTime ? ' ' + t.dueTime : ''})`, taskId: t.id } };
+      return { result: `Created ${fmtTask(t)}`, change: { tool: name, summary: `Added “${t.title}” for ${niceDate(t.date, today)}${t.dueTime ? ' at ' + t.dueTime : ''}`, taskId: t.id } };
     }
     case 'update_task': {
       const t = need();
@@ -252,7 +252,7 @@ export function execTool(core: Core, name: string, args: Record<string, unknown>
       const u = core.touch(t, { date, dueTime: time === undefined ? t.dueTime : time });
       return {
         result: `Moved ${fmtTask(u)}`,
-        change: { tool: name, summary: `Moved “${t.title}” to ${date}${u.dueTime ? ' ' + u.dueTime : ''}`, taskId: t.id },
+        change: { tool: name, summary: `Moved “${t.title}” to ${niceDate(date, today)}${u.dueTime ? ' at ' + u.dueTime : ''}`, taskId: t.id },
       };
     }
     case 'mark_started': {
@@ -286,6 +286,16 @@ export function execTool(core: Core, name: string, args: Record<string, unknown>
     }
   }
   throw new Error(`Unknown tool ${name}`);
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Human date for spoken replies: today / tomorrow / Friday / 3 Dec */
+export function niceDate(date: string, today: string): string {
+  if (date === today) return 'today';
+  if (date === addDays(today, 1)) return 'tomorrow';
+  const diff = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
+  if (diff > 1 && diff < 7) return WEEKDAYS[weekdayOf(date)][0].toUpperCase() + WEEKDAYS[weekdayOf(date)].slice(1);
+  return `${Number(date.slice(8))} ${MONTHS[Number(date.slice(5, 7)) - 1]}`;
 }
 
 function fmtTask(t: Task) {

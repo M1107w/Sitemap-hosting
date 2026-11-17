@@ -4,7 +4,7 @@ import type { Settings } from '../shared/types';
 import { api, logout, saveSettings, setSleep, useStore } from './store';
 import { navigate } from './router';
 import { dateLabel, Icon, spring, today } from './ui';
-import { pickVoice } from './voice';
+import { pickVoice, speak, unlockAudio } from './voice';
 
 type IconName = Parameters<typeof Icon>[0]['name'];
 
@@ -160,11 +160,12 @@ export function SettingsView() {
               <Row label="Test a check-in call">
                 <TestBtn onClick={() => api('/api/checkin/test', { method: 'POST', json: { night: false } })}>Send</TestBtn>
               </Row>
-              <Row label="Test the “u up?” prompt">
+              <Row label="Test the late-night prompt">
                 <TestBtn onClick={() => api('/api/checkin/test', { method: 'POST', json: { night: true } })}>Send</TestBtn>
               </Row>
             </>
           )}
+          {health?.tts && <VoicePicker voice={s.ttsVoice} speed={s.ttsSpeed} onVoice={(v) => set({ ttsVoice: v })} onSpeed={(v) => set({ ttsSpeed: v })} />}
           {!health?.tts && voices.length > 0 && (
             <Row label="Voice">
               <select value={s.voiceName || pickVoice('')?.name || ''} onChange={(e) => set({ voiceName: e.target.value })} className="max-w-[50vw] rounded-xl border border-line bg-raised px-2 py-1 text-[14px]">
@@ -281,6 +282,75 @@ function Num({ value, onChange, suffix }: { value: number; onChange: (v: number)
 function Time({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return <input type="time" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="rounded-xl border border-line bg-bg/60 px-2 py-1 text-[14px]" />;
 }
+const KOKORO_VOICES: { id: string; name: string; note: string }[] = [
+  { id: 'bm_george', name: 'George', note: 'British · deep, composed' },
+  { id: 'bm_fable', name: 'Fable', note: 'British · warm storyteller' },
+  { id: 'bm_lewis', name: 'Lewis', note: 'British · smooth, low' },
+  { id: 'bm_daniel', name: 'Daniel', note: 'British · crisp' },
+  { id: 'am_michael', name: 'Michael', note: 'American · relaxed' },
+  { id: 'am_adam', name: 'Adam', note: 'American · deep' },
+  { id: 'bf_emma', name: 'Emma', note: 'British · calm' },
+  { id: 'bf_isabella', name: 'Isabella', note: 'British · bright' },
+  { id: 'af_heart', name: 'Heart', note: 'American · friendly' },
+];
+const SAMPLE = "Good evening, sir. Your pitch deck is up at eleven, and I've moved the gym to tomorrow.";
+
+function VoicePicker({ voice, speed, onVoice, onSpeed }: { voice: string; speed: number; onVoice: (v: string) => void; onSpeed: (v: number) => void }) {
+  const health = useStore((x) => x.health);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const preview = async (id: string, sp = speed) => {
+    unlockAudio();
+    setPlaying(id);
+    await speak(SAMPLE, health, '', { voice: id, speed: sp });
+    setPlaying((p) => (p === id ? null : p));
+  };
+  return (
+    <div className="py-2">
+      <div className="pb-2 text-[14px] text-fg/90">Voice</div>
+      <div className="space-y-1">
+        {KOKORO_VOICES.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => {
+              onVoice(v.id);
+              preview(v.id);
+            }}
+            className={`press flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors duration-200 ${voice === v.id ? 'bg-fg/[0.08]' : ''}`}
+          >
+            <span className={`grid h-5 w-5 place-items-center rounded-full border ${voice === v.id ? 'border-accent bg-accent text-bg' : 'border-faint'}`}>
+              {voice === v.id && <Icon name="check" className="h-3 w-3" stroke={3} />}
+            </span>
+            <span className="flex-1">
+              <span className="block text-[14px]">{v.name}</span>
+              <span className="block text-[11.5px] text-muted">{v.note}</span>
+            </span>
+            <span className={`text-[12px] ${playing === v.id ? 'text-accent' : 'text-faint'}`}>{playing === v.id ? 'Playing…' : 'Preview'}</span>
+          </button>
+        ))}
+      </div>
+      <div className="pb-2 pt-4 text-[14px] text-fg/90">Pace</div>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          [0.88, 'Measured'],
+          [0.95, 'Natural'],
+          [1.05, 'Brisk'],
+        ].map(([v, label]) => (
+          <button
+            key={label}
+            onClick={() => {
+              onSpeed(v as number);
+              preview(voice, v as number);
+            }}
+            className={`press rounded-2xl py-2 text-[13px] ${Math.abs(speed - (v as number)) < 0.01 ? 'bg-fg text-bg' : 'bg-bg/60 text-fg/85'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Button that shows "Sent ✓" briefly so you know it went. */
 function TestBtn({ onClick, children }: { onClick: () => Promise<unknown>; children: ReactNode }) {
   const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'fail'>('idle');

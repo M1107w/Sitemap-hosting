@@ -13,6 +13,12 @@ export function unlockAudio() {
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   if (!audioCtx && Ctx) audioCtx = new Ctx();
   audioCtx?.resume();
+  if (!sharedAudio) {
+    sharedAudio = new Audio();
+    sharedAudio.setAttribute('playsinline', '');
+  }
+  sharedAudio.src = SILENCE;
+  sharedAudio.play().catch(() => {});
   if ('speechSynthesis' in window) {
     const u = new SpeechSynthesisUtterance('');
     u.volume = 0;
@@ -37,30 +43,67 @@ export function pickVoice(name: string): SpeechSynthesisVoice | undefined {
   );
 }
 
+// One audio element, unlocked by the first tap and reused, so iOS lets it keep playing.
+let sharedAudio: HTMLAudioElement | null = null;
+const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+let speakToken = 0;
+
 export function stopSpeaking() {
+  speakToken++;
   currentAudio?.pause();
   currentAudio = null;
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 
-export async function speak(text: string, health: Health, voiceName: string): Promise<void> {
+/** Split a reply into sentences so the first one can play while the next is being voiced. */
+export function splitSentences(text: string): string[] {
+  const raw = text.match(/[^.!?]+[.!?]+["”')]*|\S[^.!?]*$/g)?.map((x) => x.trim()).filter(Boolean) ?? [text];
+  const out: string[] = [];
+  for (const part of raw) {
+    if (out.length && (out[out.length - 1].length < 28 || part.length < 12)) out[out.length - 1] += ' ' + part;
+    else out.push(part);
+  }
+  return out;
+}
+
+function playBlob(blob: Blob, token: number) {
+  return new Promise<void>((res) => {
+    if (token !== speakToken) return res();
+    const a = sharedAudio ?? new Audio();
+    const url = URL.createObjectURL(blob);
+    const done = () => {
+      URL.revokeObjectURL(url);
+      res();
+    };
+    a.onended = a.onerror = a.onpause = done;
+    a.src = url;
+    currentAudio = a;
+    a.play().catch(done);
+  });
+}
+
+export async function speak(text: string, health: Health, voiceName: string, opts: { voice?: string; speed?: number } = {}): Promise<void> {
   stopSpeaking();
+  const token = speakToken;
   if (health?.tts) {
+    const parts = splitSentences(text);
+    const voiceOf = (t: string) =>
+      fetch('/api/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: t, ...opts }) }).then((r) =>
+        r.ok ? r.blob() : Promise.reject(new Error('tts')),
+      );
     try {
-      const r = await fetch('/api/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
-      if (r.ok) {
-        const url = URL.createObjectURL(await r.blob());
-        const a = new Audio(url);
-        currentAudio = a;
-        await new Promise<void>((res) => {
-          a.onended = a.onerror = a.onpause = () => res();
-          a.play().catch(() => res());
-        });
-        URL.revokeObjectURL(url);
-        return;
+      let next = voiceOf(parts[0]);
+      for (let i = 0; i < parts.length; i++) {
+        const blob = await next;
+        if (token !== speakToken) return;
+        if (i + 1 < parts.length) next = voiceOf(parts[i + 1]); // voice the next sentence while this one plays
+        await playBlob(blob, token);
+        if (token !== speakToken) return;
       }
+      return;
     } catch {
-      /* fall through to device voice */
+      if (token !== speakToken) return;
+      /* fall through to the device voice */
     }
   }
   if (!('speechSynthesis' in window)) return;
@@ -68,11 +111,10 @@ export async function speak(text: string, health: Health, voiceName: string): Pr
     const u = new SpeechSynthesisUtterance(text);
     const v = pickVoice(voiceName);
     if (v) u.voice = v;
-    u.rate = 1.04;
+    u.rate = 1.0;
     u.onend = u.onerror = () => res();
     speechSynthesis.speak(u);
-    // Safari sometimes never fires onend
-    setTimeout(res, 1500 + text.length * 90);
+    setTimeout(res, 1500 + text.length * 90); // Safari sometimes never fires onend
   });
 }
 

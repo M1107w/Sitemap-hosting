@@ -1,5 +1,5 @@
 # Everything for the planner on one machine. `docker compose up -d`
-# Services: caddy (HTTPS) → app (planner) → ollama (AI), whisper (speech→text), piper (text→speech)
+# Services: caddy (HTTPS) → app (planner) → ollama (AI), whisper (speech→text), kokoro (text→speech)
 services:
   app:
     build: .
@@ -8,12 +8,12 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
       WHISPER_URL: http://whisper:8080
-      TTS_URL: http://piper:5000
+      TTS_URL: http://kokoro:5000
       COOKIE_SECURE: "1"
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:planner@example.com}
     volumes:
       - ./data:/data
-    depends_on: [ollama, whisper, piper]
+    depends_on: [ollama, whisper, kokoro]
 
   caddy:
     image: caddy:2
@@ -52,11 +52,9 @@ services:
         WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
     restart: unless-stopped
 
-  piper:
-    build:
-      context: ./deploy/piper
-      args:
-        VOICE: ${PIPER_VOICE:-en_GB-alan-medium}
+  # natural-sounding voice for spoken replies (pick the voice in the app: Settings → Voice & AI)
+  kokoro:
+    build: ./deploy/kokoro
     restart: unless-stopped
 
 volumes:

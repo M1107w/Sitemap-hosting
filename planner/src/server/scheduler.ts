@@ -85,8 +85,8 @@ export async function tick(core: Core) {
       pendingConsent: { id, taskId: task.id, expiresAt: now + s.consentTimeoutMin * MIN },
     });
     await core.push({
-      title: 'yo, u up for a quick check-up? 🌙',
-      body: `Tap to talk. Ignore it and I'll leave you alone till ${s.wakeTime}.`,
+      title: 'Still up, sir? 🌙',
+      body: `Have you a moment for a brief check-in? If not, I'll leave you be until ${s.wakeTime}.`,
       url: `/checkin?consent=${id}`,
       tag: 'checkin',
       requireInteraction: true,

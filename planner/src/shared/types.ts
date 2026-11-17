@@ -55,6 +55,9 @@ export interface Settings {
   debriefsPerWeekMax: number;
   heavyDayMin: number; // estimated minutes that make a day "heavy"
   voiceName: string;
+  /** Kokoro voice id, e.g. bm_george */
+  ttsVoice: string;
+  ttsSpeed: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -73,6 +76,8 @@ export const DEFAULT_SETTINGS: Settings = {
   debriefsPerWeekMax: 3,
   heavyDayMin: 300,
   voiceName: '',
+  ttsVoice: 'bm_george',
+  ttsSpeed: 0.95,
 };
 
 export interface CallChange {

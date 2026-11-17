@@ -38,8 +38,19 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     setCookie(c, 'sid', token, { httpOnly: true, sameSite: 'Lax', secure, path: '/', maxAge: 60 * 60 * 24 * 365 });
   }
 
+  const up = (url: string) =>
+    fetch(url, { signal: AbortSignal.timeout(1500) }).then(
+      (r) => r.ok,
+      () => false,
+    );
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, ollama: await ollamaUp(ollama.url), model: ollama.model, whisper: !!WHISPER_URL, tts: !!TTS_URL }),
+    c.json({
+      ok: true,
+      ollama: await ollamaUp(ollama.url),
+      model: ollama.model,
+      whisper: !!WHISPER_URL,
+      tts: TTS_URL ? await up(`${TTS_URL}/health`) : false,
+    }),
   );
 
   app.get('/api/auth/state', (c) => {
@@ -187,8 +198,8 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
       const id = uid();
       core.setCheckin({ ...core.checkin(), quietUntil: 0, pendingConsent: { id, taskId: task?.id ?? null, expiresAt: core.now() + s.consentTimeoutMin * 60_000 } });
       await core.push({
-        title: 'yo, u up for a quick check-up? 🌙',
-        body: `Tap to talk. Ignore it and I'll leave you alone till ${s.wakeTime}.`,
+        title: 'Still up, sir? 🌙',
+        body: `Have you a moment for a brief check-in? If not, I'll leave you be until ${s.wakeTime}.`,
         url: `/checkin?consent=${id}`,
         tag: 'checkin',
         requireInteraction: true,
@@ -289,12 +300,13 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
 
   app.post('/api/tts', async (c) => {
     if (!TTS_URL) return c.json({ error: 'no tts' }, 501);
-    const { text } = await c.req.json();
+    const { text, voice, speed } = await c.req.json();
+    const s = core.settings();
     try {
       const r = await fetch(`${TTS_URL}/synthesize`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text: String(text).slice(0, 1000) }),
+        body: JSON.stringify({ text: String(text).slice(0, 1000), voice: voice || s.ttsVoice, speed: Number(speed) || s.ttsSpeed }),
         signal: AbortSignal.timeout(30_000),
       });
       if (!r.ok) return c.json({ error: `tts ${r.status}` }, 502);

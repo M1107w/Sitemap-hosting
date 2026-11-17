@@ -22,7 +22,7 @@ Everything lives in the `planner/` folder on branch `claude/sleepy-gates-5jfm4c`
 | Talk to it and it edits the plan for you | ✅ Full-screen voice "call". It listens, replies out loud and changes tasks live (move, add, complete, add steps and notes). Changes show instantly on every device and are logged under Recent calls. |
 | Phone and laptop | ✅ Same app on both, synced live |
 | Small login | ✅ Username and password (securely hashed), stays logged in |
-| Free / open source | ✅ Ollama (AI), whisper.cpp (speech-to-text), Piper (voice), all running on your own free server |
+| Free / open source | ✅ Ollama (AI), whisper.cpp (speech-to-text), Kokoro (natural voice), all running on your own free server |
 
 ### Screenshots (taken automatically from the real app)
 
@@ -53,7 +53,7 @@ Everything lives in the `planner/` folder on branch `claude/sleepy-gates-5jfm4c`
 
 **Not tested yet ⚠️ (this sandbox can't download them; they get built on your Oracle server)**
 - **The AI model's replies.** The tool-calling loop is tested with a stand-in model, but the real one (Qwen3 via Ollama) first runs on your server. Until it's running, voice still works in "simple mode": "done with X", "move X to tomorrow", "add X tomorrow at 3pm", "going to sleep".
-- **The whisper.cpp and Piper containers** (speech in and out). If either fails to build, the app falls back to your iPhone's built-in speech recognition and voice.
+- **The whisper.cpp and Kokoro containers** (speech in and out). If either fails to build, the app falls back to your iPhone's built-in speech recognition and voice.
 - **Real iPhone notifications.** These need the HTTPS address from step 3 and a real phone.
 
 **Things to know**

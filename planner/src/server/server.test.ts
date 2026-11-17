@@ -147,7 +147,7 @@ describe('scheduler', () => {
     core.setCheckin({ ...core.checkin(), lastActivityAt: now - 2 * 3600_000, lastCheckinAt: 0 });
     core.db.setReminderState('x', toEpoch('2026-11-16', '21:00', TZ), 999);
     await tick(core);
-    expect(core.sent.at(-1)!.title).toMatch(/u up for a quick check-up/);
+    expect(core.sent.at(-1)!.title).toMatch(/Still up, sir/);
     expect(core.checkin().pendingConsent).toBeTruthy();
     now += 11 * 60_000;
     await tick(core);
@@ -201,7 +201,7 @@ describe('http api', () => {
     await app.request('/api/checkin/test', { method: 'POST', headers: h, body: JSON.stringify({ night: false }) });
     expect(core.sent.at(-1)).toMatchObject({ title: 'Quick check-in, sir', url: '/call?mode=checkin&task=p1' });
     await app.request('/api/checkin/test', { method: 'POST', headers: h, body: JSON.stringify({ night: true }) });
-    expect(core.sent.at(-1)!.title).toMatch(/u up/);
+    expect(core.sent.at(-1)!.title).toMatch(/Still up, sir/);
     const pending = core.checkin().pendingConsent!;
     expect(pending.taskId).toBe('p1');
     const r = await app.request('/api/checkin/consent', { method: 'POST', headers: h, body: JSON.stringify({ id: pending.id, answer: 'yes' }) });

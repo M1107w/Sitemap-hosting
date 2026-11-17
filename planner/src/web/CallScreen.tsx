@@ -310,18 +310,18 @@ export function ConsentScreen({ consentId }: { consentId: string }) {
       <Icon name="moon" className="h-8 w-8 text-muted" />
       {result === 'asleep' ? (
         <>
-          <h1 className="mt-5 text-2xl font-semibold">Sleep well.</h1>
-          <p className="mt-2 text-muted">No check-ins till {settings.wakeTime}. Reminders for anything due will wait too.</p>
+          <h1 className="mt-5 text-[26px] font-medium tracking-tight">Very good, sir.</h1>
+          <p className="mt-2 text-muted">I shan't disturb you until {settings.wakeTime}. Any reminders will wait till morning. Sleep well.</p>
           <button onClick={() => navigate('/', true)} className="press mt-10 rounded-full border border-line px-6 py-3">
             Close
           </button>
         </>
       ) : expired ? (
         <>
-          <h1 className="mt-5 text-2xl font-semibold">That one timed out</h1>
-          <p className="mt-2 text-muted">I'm leaving you alone till {settings.wakeTime}. Still want to talk?</p>
+          <h1 className="mt-5 text-[26px] font-medium tracking-tight">I'll leave you be, sir.</h1>
+          <p className="mt-2 text-muted">No reply, so I've gone quiet until {settings.wakeTime}. Should you wish to talk after all, I'm here.</p>
           <button onClick={anyway} className="press mt-10 w-full max-w-xs rounded-full bg-fg py-3.5 font-medium text-bg">
-            Check in anyway
+            Check in now
           </button>
           <button onClick={() => navigate('/', true)} className="press mt-3 w-full max-w-xs rounded-full py-3.5 text-muted">
             Close
@@ -329,10 +329,10 @@ export function ConsentScreen({ consentId }: { consentId: string }) {
         </>
       ) : (
         <>
-          <h1 className="mt-5 text-2xl font-semibold">yo, u up for a quick check-up?</h1>
-          <p className="mt-2 text-muted">2 minutes. Say “no” and I'll leave you till {settings.wakeTime}.</p>
+          <h1 className="mt-5 text-[26px] font-medium tracking-tight">Still up, sir?</h1>
+          <p className="mt-2 text-muted">Have you a moment for a brief check-in? Two minutes at most. If not, I'll leave you be until {settings.wakeTime}.</p>
           <button onClick={() => answer('yes')} className="press mt-10 w-full max-w-xs rounded-full bg-fg py-3.5 font-medium text-bg">
-            Yeah, let's go
+            Yes, go ahead
           </button>
           <button onClick={() => answer('no')} className="press mt-3 w-full max-w-xs rounded-full border border-line py-3.5">
             Not tonight

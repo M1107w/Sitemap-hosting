@@ -7,7 +7,7 @@ A personal planner PWA for iPhone and laptop. It shows today's tasks in priority
 ## Stack (all free / open source)
 - **App:** Vite + React + TypeScript, Tailwind, Framer Motion, Dexie (offline cache), Workbox (installable PWA + push)
 - **Server:** Node + Hono, SQLite (better-sqlite3), web-push (VAPID), argon2 login
-- **AI:** Ollama (`qwen3:4b` by default) with tool calling, whisper.cpp (speech → text), Piper (text → speech). The app falls back to the device's own speech and a rule-based parser if any of these are down.
+- **AI:** Ollama (`qwen3:4b` by default) with tool calling, whisper.cpp (speech → text), Kokoro (natural text → speech, voice picked in Settings). The app falls back to the device's own speech and a rule-based parser if any of these are down.
 - **Hosting:** Docker Compose + Caddy (automatic HTTPS)
 
 ## Layout
@@ -15,7 +15,7 @@ A personal planner PWA for iPhone and laptop. It shows today's tasks in priority
 src/shared/      types + timezone helpers
 src/server/      API (app.ts), scheduler (reminders/debriefs/check-ins), pure logic (logic.ts), AI tools (assistant.ts)
 src/web/         the PWA: TodayView, TaskCard, MonthView, CallScreen, SettingsView, service worker
-deploy/          Caddyfile, whisper + piper images, Oracle setup script, backup script
+deploy/          Caddyfile, whisper + kokoro images, Oracle setup script, backup script
 docs/screens/    automatic screenshots
 ```
 

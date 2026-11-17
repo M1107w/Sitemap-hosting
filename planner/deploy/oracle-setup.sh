@@ -51,7 +51,7 @@ grep '^DOMAIN=' .env
 mkdir -p data
 
 say "Nightly backup at 04:00"
-( crontab -l 2>/dev/null | grep -v planner-backup; echo "0 4 * * * $(pwd)/deploy/backup.sh >/dev/null 2>&1 # planner-backup" ) | crontab -
+{ crontab -l 2>/dev/null | grep -v planner-backup || true; echo "0 4 * * * $(pwd)/deploy/backup.sh >/dev/null 2>&1 # planner-backup"; } | crontab - || echo "(couldn't set up the backup job; skipping)"
 
 say "5/5 Build + start everything (first time: ~10–20 min, downloads the AI model ~2.5 GB)"
 $DOCKER compose up -d --build

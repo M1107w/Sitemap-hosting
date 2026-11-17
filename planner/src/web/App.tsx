@@ -137,7 +137,7 @@ function Login({ mode }: { mode: 'setup' | 'login' }) {
         <div className="mb-8 flex items-center gap-3">
           <img src="/icon.svg" alt="" className="h-10 w-10 rounded-xl" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">SleepyGates</h1>
             <p className="text-[13px] text-muted">{mode === 'setup' ? 'Create your login' : 'Welcome back'}</p>
           </div>
         </div>

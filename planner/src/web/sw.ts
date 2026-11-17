@@ -17,10 +17,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data?.json() ?? {};
   } catch {
-    data = { title: 'Today', body: event.data?.text() };
+    data = { title: 'SleepyGates', body: event.data?.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Today', {
+    self.registration.showNotification(data.title || 'SleepyGates', {
       body: data.body,
       tag: data.tag,
       // re-alert even when replacing an earlier notification with the same tag

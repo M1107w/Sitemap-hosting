@@ -15,8 +15,8 @@ export default defineConfig({
       devOptions: { enabled: false },
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,woff2}'] },
       manifest: {
-        name: 'Today',
-        short_name: 'Today',
+        name: 'SleepyGates',
+        short_name: 'SleepyGates',
         description: 'Your day, in order.',
         display: 'standalone',
         start_url: '/',

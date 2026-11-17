@@ -87,7 +87,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
       </header>
 
       {/* Summary card */}
-      <motion.section layout="position" transition={spring} className="mt-4 rounded-[24px] border border-line/70 bg-card p-5">
+      <section className="mt-4 rounded-[24px] border border-line/70 bg-card p-5">
         <div className="text-[34px] font-light leading-none tracking-tight">{fmtDur(planned)}</div>
         <div className="mt-2 text-[13px] text-muted">
           planned · {fmtDur(free)} free{quiet ? ' · quiet mode' : ''}
@@ -102,7 +102,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
         <p className="mt-4 text-[14.5px] leading-relaxed text-fg/85 [&_b]:font-medium [&_b]:text-fg">
           {assistantLine(open, carried, done.length, settings, quiet, isToday, dayName.toLowerCase())}
         </p>
-      </motion.section>
+      </section>
 
       {debrief && (
         <button
@@ -123,7 +123,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
       {/* Task list */}
       <LayoutGroup>
         {total > 0 && (
-          <motion.section layout="position" transition={spring} className="mt-3 rounded-[24px] border border-line/70 bg-card p-1.5">
+          <section className="mt-3 rounded-[24px] border border-line/70 bg-card p-1.5">
             {carried.length > 0 && <Label>Carried over</Label>}
             <AnimatePresence initial={false}>
               {carried.map((x) => (
@@ -155,7 +155,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
               ))}
             </AnimatePresence>
             {open.length === 0 && carried.length === 0 && <div className="px-4 py-5 text-center text-[13.5px] text-muted">Everything's ticked off.</div>}
-          </motion.section>
+          </section>
         )}
 
         {total === 0 && (
@@ -171,7 +171,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
         )}
 
         {done.length > 0 && (
-          <motion.div layout="position" transition={spring} className="mt-4">
+          <div className="mt-4">
             <button onClick={() => setShowDone(!showDone)} className="press flex items-center gap-1 px-2 py-2 text-[13px] text-muted">
               {showDone ? 'Hide' : 'Show'} done ({done.length})
               <motion.span animate={{ rotate: showDone ? 180 : 0 }} transition={spring}>
@@ -185,7 +185,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={spring}
-                  className="overflow-hidden rounded-[24px] border border-line/70 bg-card p-1.5"
+                  className="clip-round overflow-hidden rounded-[24px] border border-line/70 bg-card p-1.5"
                 >
                   {done.map((x) => (
                     <TaskCard
@@ -200,7 +200,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
         )}
       </LayoutGroup>
 
@@ -211,12 +211,13 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
 
 function Item({ children }: { children: React.ReactNode }) {
   return (
+    // Enter/leave by growing/shrinking height, so the rows below glide with normal layout (no stretch transforms).
     <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 60, transition: { duration: 0.18 } }}
-      transition={spring}
+      className="overflow-hidden"
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ ...spring, opacity: { duration: 0.16 } }}
     >
       {children}
     </motion.div>

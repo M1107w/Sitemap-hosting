@@ -219,7 +219,7 @@ function Head({ icon, tint, title, sub, children }: { icon: IconName; tint: stri
 
 function Expand({ open, onToggle, icon, tint, title, sub, children }: { open: boolean; onToggle: () => void; icon: IconName; tint: string; title: string; sub: string; children: ReactNode }) {
   return (
-    <motion.div layout="position" transition={spring} className={`overflow-hidden rounded-[22px] border border-line/70 ${open ? 'bg-raised' : 'bg-card'}`}>
+    <div className={`clip-round overflow-hidden rounded-[22px] border border-line/70 transition-colors duration-200 ${open ? 'bg-raised' : 'bg-card'}`}>
       <button onClick={onToggle} className="w-full text-left">
         <Head icon={icon} tint={tint} title={title} sub={sub}>
           <motion.span animate={{ rotate: open ? 180 : 0 }} transition={spring} className="text-faint">
@@ -234,7 +234,7 @@ function Expand({ open, onToggle, icon, tint, title, sub, children }: { open: bo
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -249,7 +249,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
     <button onClick={onChange} role="switch" aria-checked={on} className={`relative h-[30px] w-[50px] shrink-0 rounded-full transition-colors duration-200 ${on ? 'bg-accent' : 'bg-line'}`}>
-      <motion.span layout transition={spring} className={`absolute top-[3px] h-6 w-6 rounded-full bg-white shadow ${on ? 'right-[3px]' : 'left-[3px]'}`} />
+      <motion.span initial={false} animate={{ x: on ? 20 : 0 }} transition={spring} className="gpu absolute left-[3px] top-[3px] h-6 w-6 rounded-full bg-white shadow" />
     </button>
   );
 }
@@ -299,7 +299,7 @@ function CallHistory() {
           const d = new Date(c.startedAt);
           const isOpen = open === c.id;
           return (
-            <motion.div key={c.id} layout="position" transition={spring} className="overflow-hidden rounded-[20px] border border-line/70 bg-card">
+            <div key={c.id} className="clip-round overflow-hidden rounded-[20px] border border-line/70 bg-card">
               <button onClick={() => setOpen(isOpen ? null : c.id)} className="flex w-full items-center justify-between px-4 py-3 text-left text-[14px]">
                 <span>
                   {c.kind === 'debrief' ? 'Debrief' : 'Check-in'} · {dateLabel(d.toISOString().slice(0, 10), t)} {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -327,7 +327,7 @@ function CallHistory() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </div>
           );
         })}
       </div>

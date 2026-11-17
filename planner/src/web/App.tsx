@@ -1,4 +1,4 @@
-import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { activity, api, closeEditor, dismissToast, getState, loadAll, moveOverdueToTomorrow, openEditor, setAuth, setSleep, useStore } from './store';
 import { navigate, useLocation } from './router';
@@ -8,7 +8,7 @@ import { CallScreen, ConsentScreen } from './CallScreen';
 import { SettingsView, TalkView } from './SettingsView';
 import { TaskEditor } from './sheets';
 import { addDays } from '../shared/time';
-import { Icon, nowMin, softSpring, spring, today } from './ui';
+import { Icon, nowMin, spring, today } from './ui';
 
 export function App() {
   return (
@@ -69,10 +69,11 @@ function Shell() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.main
           key={path}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+          className="gpu"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.14, ease: 'easeOut' }}
         >
           {screen}
         </motion.main>
@@ -117,7 +118,7 @@ function TabBar({ tab }: { tab: string }) {
         {open && (
           <motion.div
             key="scrim"
-            className="fixed inset-0 z-30 bg-black/60"
+            className="gpu fixed inset-0 z-40 bg-black/60"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -127,79 +128,68 @@ function TabBar({ tab }: { tab: string }) {
         )}
       </AnimatePresence>
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-5 pb-[max(env(safe-area-inset-bottom),14px)]">
-        <LayoutGroup>
+        <div className="relative w-full max-w-md">
+          {/* The bar. It never changes size, so there's nothing to stretch or redraw. */}
           <motion.nav
-            layout
-            transition={softSpring}
-            style={{ borderRadius: open ? 30 : 26, willChange: 'transform' }}
-            className={`pointer-events-auto relative overflow-hidden border border-line bg-raised/95 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${open ? 'w-full max-w-md' : ''}`}
+            className="gpu pointer-events-auto mx-auto flex w-max items-center gap-1 rounded-[26px] border border-line bg-raised p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+            initial={false}
+            animate={{ opacity: open ? 0 : 1, scale: open ? 0.96 : 1 }}
+            transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+            style={{ pointerEvents: open ? 'none' : 'auto' }}
           >
-            <AnimatePresence mode="popLayout" initial={false}>
-              {open ? (
-                <motion.div
-                  key="grid"
-                  layout="position"
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="px-3 pb-3 pt-4"
-                >
-                  <div className="grid grid-cols-3 gap-x-2 gap-y-4">
-                    {actions.map((a, i) => (
-                      <motion.button
-                        key={a.label}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ ...spring, delay: 0.03 * i }}
-                        onClick={() => {
-                          setOpen(false);
-                          a.run();
-                        }}
-                        className="press flex flex-col items-center gap-2 text-center text-[12px] leading-tight text-fg/85"
-                      >
-                        <span className={`grid h-12 w-12 place-items-center rounded-2xl ${a.tint}`}>
-                          <Icon name={a.icon} className="h-[22px] w-[22px]" stroke={1.9} />
-                        </span>
-                        {a.label}
-                      </motion.button>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex justify-end">
-                    <button aria-label="Close" onClick={() => setOpen(false)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg/[0.08]">
-                      <Icon name="x" className="h-5 w-5" />
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="bar"
-                  layout="position"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.14 }}
-                  className="flex items-center gap-1 p-1.5"
-                >
-                  {tabs.map((it) => (
+            {tabs.map((it) => (
+              <button
+                key={it.to}
+                aria-label={it.label}
+                onClick={() => navigate(it.to)}
+                className={`relative grid h-11 w-12 place-items-center rounded-[18px] transition-colors duration-200 ${tab === it.to ? 'bg-fg/[0.08] text-fg' : 'text-faint'}`}
+              >
+                <Icon name={it.icon} className="h-[22px] w-[22px]" stroke={tab === it.to ? 2 : 1.8} />
+              </button>
+            ))}
+            <button aria-label="More actions" onClick={() => setOpen(true)} className="press ml-1 grid h-11 w-12 place-items-center rounded-[18px] bg-fg text-bg">
+              <Icon name="plus" className="h-[22px] w-[22px]" stroke={2.3} />
+            </button>
+          </motion.nav>
+
+          {/* The panel: one solid piece that grows out of the + button. Scale + fade only. */}
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                key="panel"
+                className="gpu pointer-events-auto absolute inset-x-0 bottom-0 rounded-[30px] border border-line bg-raised px-3 pb-3 pt-4 shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+                style={{ transformOrigin: '85% 100%' }}
+                initial={{ opacity: 0, scale: 0.86, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 6 }}
+                transition={{ type: 'spring', stiffness: 560, damping: 40, mass: 0.7 }}
+              >
+                <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+                  {actions.map((a) => (
                     <button
-                      key={it.to}
-                      aria-label={it.label}
-                      onClick={() => navigate(it.to)}
-                      className={`relative grid h-11 w-12 place-items-center rounded-[18px] transition-colors ${tab === it.to ? 'text-fg' : 'text-faint'}`}
+                      key={a.label}
+                      onClick={() => {
+                        setOpen(false);
+                        a.run();
+                      }}
+                      className="press flex flex-col items-center gap-2 text-center text-[12px] leading-tight text-fg/85"
                     >
-                      {tab === it.to && <motion.span layoutId="tab-pill" transition={spring} className="absolute inset-0 rounded-[18px] bg-fg/[0.08]" />}
-                      <Icon name={it.icon} className="relative h-[22px] w-[22px]" stroke={tab === it.to ? 2 : 1.8} />
+                      <span className={`grid h-12 w-12 place-items-center rounded-2xl ${a.tint}`}>
+                        <Icon name={a.icon} className="h-[22px] w-[22px]" stroke={1.9} />
+                      </span>
+                      {a.label}
                     </button>
                   ))}
-                  <button aria-label="More actions" onClick={() => setOpen(true)} className="press ml-1 grid h-11 w-12 place-items-center rounded-[18px] bg-fg text-bg">
-                    <Icon name="plus" className="h-[22px] w-[22px]" stroke={2.3} />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button aria-label="Close" onClick={() => setOpen(false)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg/[0.08]">
+                    <Icon name="x" className="h-5 w-5" />
                   </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.nav>
-        </LayoutGroup>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </>
   );

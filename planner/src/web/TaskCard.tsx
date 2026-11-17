@@ -27,7 +27,7 @@ export function TaskCard({ task, expanded, onToggle, onReschedule, onEdit, overd
   const tint = TINT[taskStyle(task).tint];
 
   return (
-    <motion.div layout="position" transition={spring} className="relative">
+    <div className="relative">
       {/* swipe hints behind the row */}
       <div className="absolute inset-0 flex items-center justify-between px-4 text-[13px] font-medium">
         <motion.span style={{ opacity: doneOpacity }} className="flex items-center gap-1.5 text-green">
@@ -39,9 +39,7 @@ export function TaskCard({ task, expanded, onToggle, onReschedule, onEdit, overd
       </div>
 
       <motion.div
-        layout
-        transition={spring}
-        style={{ x, willChange: 'transform' }}
+        style={{ x }}
         drag={expanded ? false : 'x'}
         dragDirectionLock
         dragConstraints={{ left: 0, right: 0 }}
@@ -59,9 +57,9 @@ export function TaskCard({ task, expanded, onToggle, onReschedule, onEdit, overd
             onReschedule();
           }
         }}
-        className={`relative rounded-[20px] ${expanded ? 'bg-raised' : 'bg-card'}`}
+        className={`gpu relative rounded-[20px] transition-colors duration-200 ${expanded ? 'bg-raised' : 'bg-card'}`}
       >
-        <motion.div layout="position" className="flex items-center gap-3.5 px-3 py-3" onClick={() => !dragged.current && onToggle()}>
+        <div className="flex items-center gap-3.5 px-3 py-3" onClick={() => !dragged.current && onToggle()}>
           <div className={isDone ? 'opacity-40' : ''}>
             <TaskIcon task={task} />
           </div>
@@ -84,7 +82,7 @@ export function TaskCard({ task, expanded, onToggle, onReschedule, onEdit, overd
               {fmtDur(left)}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         <AnimatePresence initial={false}>
           {expanded && (
@@ -101,7 +99,7 @@ export function TaskCard({ task, expanded, onToggle, onReschedule, onEdit, overd
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 

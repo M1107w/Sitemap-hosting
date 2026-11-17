@@ -82,12 +82,11 @@ export function MonthView() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: dir * -40 }}
           transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
-          style={{ willChange: 'transform' }}
+          className="gpu grid grid-cols-7 gap-1"
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.18}
           onDragEnd={(_, i) => (i.offset.x < -60 ? shift(1) : i.offset.x > 60 ? shift(-1) : null)}
-          className="grid grid-cols-7 gap-1"
         >
           {days.slice(0, rows * 7).map((d) => (
             <DayCell
@@ -119,7 +118,7 @@ export function MonthView() {
       {upcoming.length > 0 && (
         <section className="mt-6">
           <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wider text-faint">Upcoming debriefs</div>
-          <div className="overflow-hidden rounded-[24px] border border-line/70 bg-card">
+          <div className="clip-round overflow-hidden rounded-[24px] border border-line/70 bg-card">
             {upcoming.map((d, i) => (
               <DebriefRow key={d.id} d={d} t={t} first={i === 0} />
             ))}

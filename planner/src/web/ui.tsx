@@ -204,8 +204,7 @@ export function Sheet({ open, onClose, children, title }: { open: boolean; onClo
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-lg rounded-t-[28px] border-t border-line bg-card pb-safe"
-            style={{ willChange: 'transform' }}
+            className="gpu fixed inset-x-0 bottom-0 z-50 mx-auto max-w-lg rounded-t-[28px] border-t border-line bg-card pb-safe"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}

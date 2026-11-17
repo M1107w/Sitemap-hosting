@@ -63,6 +63,22 @@ input[type='time'] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+/* Keep animating things on their own GPU layer for their whole life, so Safari
+   never creates/destroys the layer at the start/end of an animation (that's the "flash"). */
+.gpu {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+/* Safari: rounded boxes don't clip animating children without this (square-corner flicker). */
+.clip-round {
+  isolation: isolate;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Tap feedback: transform + opacity only, so it stays on the GPU */
 .press {
   transition: transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 140ms ease;

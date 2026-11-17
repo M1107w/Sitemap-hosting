@@ -113,9 +113,7 @@ export function SettingsView() {
           </Row>
           {push.status === 'on' && (
             <Row label="Send a test">
-              <button onClick={() => api('/api/push/test', { method: 'POST', json: {} })} className="press rounded-full bg-fg/[0.08] px-3 py-1 text-[13px]">
-                Send
-              </button>
+              <TestBtn onClick={() => api('/api/push/test', { method: 'POST', json: {} })}>Send</TestBtn>
             </Row>
           )}
         </Expand>
@@ -157,6 +155,16 @@ export function SettingsView() {
           <Row label="Speech to text">
             <Status ok={!!health?.whisper} text={health?.whisper ? 'server' : 'device'} />
           </Row>
+          {push.status === 'on' && (
+            <>
+              <Row label="Test a check-in call">
+                <TestBtn onClick={() => api('/api/checkin/test', { method: 'POST', json: { night: false } })}>Send</TestBtn>
+              </Row>
+              <Row label="Test the “u up?” prompt">
+                <TestBtn onClick={() => api('/api/checkin/test', { method: 'POST', json: { night: true } })}>Send</TestBtn>
+              </Row>
+            </>
+          )}
           {!health?.tts && voices.length > 0 && (
             <Row label="Voice">
               <select value={s.voiceName || pickVoice('')?.name || ''} onChange={(e) => set({ voiceName: e.target.value })} className="max-w-[50vw] rounded-xl border border-line bg-raised px-2 py-1 text-[14px]">
@@ -273,6 +281,29 @@ function Num({ value, onChange, suffix }: { value: number; onChange: (v: number)
 function Time({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return <input type="time" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="rounded-xl border border-line bg-bg/60 px-2 py-1 text-[14px]" />;
 }
+/** Button that shows "Sent ✓" briefly so you know it went. */
+function TestBtn({ onClick, children }: { onClick: () => Promise<unknown>; children: ReactNode }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'fail'>('idle');
+  return (
+    <button
+      disabled={state === 'busy'}
+      onClick={async () => {
+        setState('busy');
+        try {
+          await onClick();
+          setState('sent');
+        } catch {
+          setState('fail');
+        }
+        setTimeout(() => setState('idle'), 2500);
+      }}
+      className="press rounded-full bg-fg/[0.08] px-3 py-1 text-[13px] disabled:opacity-50"
+    >
+      {state === 'sent' ? 'Sent ✓ lock your phone' : state === 'fail' ? 'Failed' : children}
+    </button>
+  );
+}
+
 function Status({ ok, text }: { ok: boolean; text: string }) {
   return (
     <span className="flex items-center gap-2 text-[13px] text-muted">

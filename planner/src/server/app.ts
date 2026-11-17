@@ -177,6 +177,34 @@ export function createApp(core: Core, opts: { provider?: Provider | null } = {})
     core.db.removePushSub(endpoint);
     return c.json({ ok: true });
   });
+  // Send a real check-in (or the late-night "u up?" prompt) right now, for testing.
+  app.post('/api/checkin/test', async (c) => {
+    const { night } = await c.req.json().catch(() => ({ night: false }));
+    const s = core.settings();
+    const open = core.db.tasks().filter((t) => t.status === 'open').sort((a, b) => a.priority - b.priority || a.date.localeCompare(b.date));
+    const task = open[0] ?? null;
+    if (night) {
+      const id = uid();
+      core.setCheckin({ ...core.checkin(), quietUntil: 0, pendingConsent: { id, taskId: task?.id ?? null, expiresAt: core.now() + s.consentTimeoutMin * 60_000 } });
+      await core.push({
+        title: 'yo, u up for a quick check-up? 🌙',
+        body: `Tap to talk. Ignore it and I'll leave you alone till ${s.wakeTime}.`,
+        url: `/checkin?consent=${id}`,
+        tag: 'checkin',
+        requireInteraction: true,
+      });
+    } else {
+      await core.push({
+        title: 'Quick check-in, sir',
+        body: task ? `How's “${task.title}” going? Tap to talk it through and I'll update the plan.` : "What are you working on? Tap to talk it through.",
+        url: task ? `/call?mode=checkin&task=${task.id}` : '/call?mode=chat',
+        tag: 'checkin',
+        requireInteraction: true,
+      });
+    }
+    return c.json({ ok: true, devices: core.db.pushSubs().length });
+  });
+
   app.post('/api/push/test', async (c) => {
     await core.push({ title: 'Test notification ✅', body: 'Reminders will look like this.', url: '/' });
     return c.json({ ok: true, devices: core.db.pushSubs().length });

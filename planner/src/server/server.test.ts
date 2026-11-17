@@ -189,4 +189,22 @@ describe('http api', () => {
     expect(turn.changes[0].tool).toBe('complete_task');
     expect(core.db.task('new1')!.status).toBe('done');
   });
+  it('test check-in buttons send a check-in and a "u up?" prompt', async () => {
+    const app = createApp(core, { provider: null });
+    const res0 = await app.request('/api/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'me', password: 'secret123' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const h = { cookie: res0.headers.get('set-cookie')!.split(';')[0], 'content-type': 'application/json' };
+    core.saveTask(task({ id: 'p1', title: 'Pitch deck', priority: 1 }));
+    await app.request('/api/checkin/test', { method: 'POST', headers: h, body: JSON.stringify({ night: false }) });
+    expect(core.sent.at(-1)).toMatchObject({ title: 'Quick check-in, sir', url: '/call?mode=checkin&task=p1' });
+    await app.request('/api/checkin/test', { method: 'POST', headers: h, body: JSON.stringify({ night: true }) });
+    expect(core.sent.at(-1)!.title).toMatch(/u up/);
+    const pending = core.checkin().pendingConsent!;
+    expect(pending.taskId).toBe('p1');
+    const r = await app.request('/api/checkin/consent', { method: 'POST', headers: h, body: JSON.stringify({ id: pending.id, answer: 'yes' }) });
+    expect(await r.json()).toMatchObject({ ok: true, taskId: 'p1' });
+  });
 });

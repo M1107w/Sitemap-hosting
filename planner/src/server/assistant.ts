@@ -332,8 +332,8 @@ export function greeting(core: Core, call: CallLog): string {
   const tasks = core.db.tasks();
   if (call.kind === 'checkin') {
     const t = call.taskId ? core.db.task(call.taskId) : null;
-    if (t) return `Hey, quick check-in on “${t.title}”. How's it going?`;
-    return "Hey, quick check-in. What are you working on right now?";
+    if (t) return `Quick check-in on “${t.title}”, sir. How's it going?`;
+    return 'Quick check-in, sir. What are you working on right now?';
   }
   if (call.kind === 'debrief') {
     const tomorrow = addDays(today, 1);
@@ -349,7 +349,7 @@ export function greeting(core: Core, call: CallLog): string {
       weekMin += l.minutes;
     }
     const leftToday = tasks.filter((t) => t.date <= today && t.status === 'open').length;
-    const parts = ['Debrief time.'];
+    const parts = ['Debrief time, sir.'];
     if (leftToday) parts.push(`You've still got ${leftToday} open from today.`);
     parts.push(
       load.count
@@ -357,10 +357,10 @@ export function greeting(core: Core, call: CallLog): string {
         : 'Tomorrow is clear so far.',
     );
     parts.push(week ? `Rest of the week: ${week} more, about ${hours(weekMin)}.` : 'Rest of the week is light.');
-    parts.push('Anything you want to move, add or drop?');
+    parts.push("Anything you'd like moved, added or dropped?");
     return parts.join(' ');
   }
-  return 'Hey. What do you want to change?';
+  return 'At your service, sir. What would you like to change?';
 }
 
 function hours(min: number) {
@@ -384,7 +384,7 @@ export function systemPrompt(core: Core, call: CallLog): string {
   }
   const focus = call.taskId ? core.db.task(call.taskId) : null;
   return [
-    `You are the user's planning assistant on a short voice call, like JARVIS: calm, brief, a bit casual.`,
+    `You are the user's planning assistant on a short voice call, like a calm, capable butler. Address the user as "sir" now and then (not every sentence). Brief and a bit dry.`,
     'Rules:',
     '- Listen to what they are doing and UPDATE THE PLAN WITH TOOLS without asking permission for obvious changes (done → complete_task, "later/tomorrow" → reschedule_task, new thing → create_task, started → mark_started).',
     '- Use task ids from the list above. Dates as YYYY-MM-DD, times as HH:mm 24h.',
@@ -468,8 +468,8 @@ export function fallbackTurn(core: Core, call: CallLog, text: string): TurnResul
   else if (focus && t.length > 3) run('add_note', { task: focus.id, note: t });
 
   const reply = changes.length
-    ? `${changes.map((c) => c.summary).join('. ')}. Anything else?`
-    : "Got it. (The AI model isn't running, so I only understand simple things like: done with X, move X to tomorrow, add X.)";
+    ? `${changes.map((c) => c.summary).join('. ')}. Anything else, sir?`
+    : "Noted, sir. (The AI model isn't running, so I only understand simple things like: done with X, move X to tomorrow, add X.)";
   return { reply, changes, provider: 'fallback' };
 }
 

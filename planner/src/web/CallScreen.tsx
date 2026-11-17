@@ -130,7 +130,7 @@ export function CallScreen({ mode, taskId, debriefId }: { mode: 'checkin' | 'deb
   const orbScale = phase === 'listening' ? 1 + level * 0.35 : phase === 'speaking' ? 1.06 : 1;
   const title = mode === 'debrief' ? 'Debrief' : task ? task.title : 'Quick check-in';
   const status =
-    phase === 'ready' && !call ? (mode === 'debrief' ? "Tap to start. I'll run you through what's coming." : 'Tap to start talking') :
+    phase === 'ready' && !call ? (mode === 'debrief' ? "Tap to start. I'll run you through what's coming, sir." : 'Tap to start, sir') :
     phase === 'speaking' ? 'Speaking · tap to interrupt' :
     phase === 'listening' ? 'Listening… just talk' :
     phase === 'thinking' ? 'Thinking…' :
@@ -170,12 +170,12 @@ export function CallScreen({ mode, taskId, debriefId }: { mode: 'checkin' | 'deb
           aria-label="Talk"
         >
           <motion.div
-            className={`absolute inset-0 rounded-full ${phase === 'listening' ? 'bg-ok/15' : 'bg-fg/[0.06]'}`}
+            className={`absolute inset-0 rounded-full ${phase === 'listening' ? 'bg-cyan/15' : 'bg-fg/[0.06]'}`}
             animate={{ scale: orbScale * (phase === 'thinking' ? 1.08 : 1) }}
             transition={phase === 'thinking' ? { repeat: Infinity, repeatType: 'reverse', duration: 0.8 } : { type: 'spring', stiffness: 300, damping: 18 }}
           />
           <motion.div
-            className={`absolute inset-8 rounded-full ${phase === 'listening' ? 'bg-ok' : phase === 'ended' ? 'bg-line' : 'bg-fg'}`}
+            className={`absolute inset-8 rounded-full ${phase === 'listening' ? 'bg-cyan' : phase === 'ended' ? 'bg-line' : 'bg-fg'}`}
             animate={{ scale: phase === 'speaking' ? [1, 1.05, 1] : 1 }}
             transition={phase === 'speaking' ? { repeat: Infinity, duration: 1.1 } : { duration: 0.2 }}
           />
@@ -201,7 +201,7 @@ export function CallScreen({ mode, taskId, debriefId }: { mode: 'checkin' | 'deb
         {changes.length > 0 && (
           <div className="mt-6 flex max-w-md flex-wrap justify-center gap-1.5">
             {changes.map((c, i) => (
-              <motion.span key={i} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="rounded-full border border-line bg-card px-3 py-1 text-[12px]">
+              <motion.span key={i} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="rounded-full border border-line bg-card px-3 py-1 text-[12px] text-green">
                 ✓ {c.summary}
               </motion.span>
             ))}
@@ -218,7 +218,7 @@ export function CallScreen({ mode, taskId, debriefId }: { mode: 'checkin' | 'deb
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendTyped()}
             placeholder="Type what's going on…"
-            className="flex-1 py-1.5 text-[15px]"
+            className="min-w-0 flex-1 py-1.5 text-[15px]"
           />
           <button onClick={sendTyped} className="press rounded-full bg-fg px-3 py-1.5 text-[13px] text-bg">
             Send
@@ -248,7 +248,7 @@ export function CallScreen({ mode, taskId, debriefId }: { mode: 'checkin' | 'deb
             />
             <button
               onClick={() => (call ? end() : navigate('/'))}
-              className="press grid h-16 w-16 place-items-center rounded-full bg-accent text-white shadow-lg"
+              className="press grid h-16 w-16 place-items-center rounded-full bg-red text-white shadow-lg"
               aria-label="End call"
             >
               <Icon name="phone" className="h-6 w-6 rotate-[135deg]" />

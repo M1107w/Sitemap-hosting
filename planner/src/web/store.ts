@@ -30,6 +30,8 @@ export interface State {
   pending: number;
   toast: { id: string; text: string; undo?: () => void } | null;
   health: { ollama: boolean; whisper: boolean; tts: boolean; model: string } | null;
+  /** the add/edit task sheet, opened from anywhere (e.g. the + menu) */
+  editor: { task: Task | null; date: string } | null;
 }
 
 let state: State = {
@@ -44,6 +46,7 @@ let state: State = {
   pending: 0,
   toast: null,
   health: null,
+  editor: null,
 };
 const subs = new Set<() => void>();
 function set(patch: Partial<State>) {
@@ -296,4 +299,26 @@ export async function logout() {
 
 export function setAuth(auth: AuthState) {
   set({ auth });
+}
+
+export function openEditor(date: string, task: Task | null = null) {
+  set({ editor: { task, date } });
+}
+export function closeEditor() {
+  set({ editor: null });
+}
+
+/** Push every unfinished task from earlier days (and today's missed timed ones) to tomorrow. */
+export function moveOverdueToTomorrow(todayDate: string, tomorrow: string, nowMinutes: number) {
+  const moved: Task[] = [];
+  for (const t of Object.values(state.tasks)) {
+    if (t.status !== 'open') continue;
+    const missedToday = t.date === todayDate && t.dueTime && Number(t.dueTime.slice(0, 2)) * 60 + Number(t.dueTime.slice(3)) < nowMinutes;
+    if (t.date < todayDate || missedToday) {
+      moved.push(t);
+      patchTask(t.id, { date: tomorrow });
+    }
+  }
+  if (!moved.length) return toast('Nothing overdue, sir.');
+  toast(`Moved ${moved.length} to tomorrow`, () => moved.forEach((t) => patchTask(t.id, { date: t.date })));
 }

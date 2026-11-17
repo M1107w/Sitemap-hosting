@@ -53,7 +53,7 @@ export async function tick(core: Core) {
       notified.push(d.id);
       await core.push({
         title: 'Debrief time 🗓️',
-        body: `${d.reason}. Tap for a 2-minute run-through of what's coming.`,
+        body: `${d.reason}. Tap for a 2-minute run-through, sir.`,
         url: `/call?mode=debrief&debrief=${d.id}`,
         tag: 'debrief',
         requireInteraction: true,
@@ -94,8 +94,8 @@ export async function tick(core: Core) {
   } else {
     core.setCheckin({ ...state, lastCheckinAt: now, checkinsToday: { date: today, count: count + 1 } });
     await core.push({
-      title: `Quick check-in: ${task.title}`,
-      body: "How's it going? Tap to talk it through. I'll update the plan for you.",
+      title: `Quick check-in, sir`,
+      body: `How's “${task.title}” going? Tap to talk it through and I'll update the plan.`,
       url: `/call?mode=checkin&task=${task.id}`,
       tag: 'checkin',
       requireInteraction: true,

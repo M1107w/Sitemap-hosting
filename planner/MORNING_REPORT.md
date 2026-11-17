@@ -26,8 +26,15 @@ Everything lives in the `planner/` folder on branch `claude/sleepy-gates-5jfm4c`
 
 ### Screenshots (taken automatically from the real app)
 
-| Today | Task opened | Move sheet | Month |
+| Today | Task opened | + menu | Month |
 |---|---|---|---|
+| ![](docs/screens/iphone-1-today.png) | ![](docs/screens/iphone-2-expanded.png) | ![](docs/screens/iphone-5-plus-menu.png) | ![](docs/screens/iphone-7-month.png) |
+
+| Settings | Talk | Voice check-in | Laptop |
+|---|---|---|---|
+| ![](docs/screens/iphone-8-settings.png) | ![](docs/screens/iphone-9-talk.png) | ![](docs/screens/iphone-10-call.png) | ![](docs/screens/laptop-2-month.png) |
+
+---|---|---|---|
 | ![](docs/screens/iphone-1-today.png) | ![](docs/screens/iphone-2-expanded.png) | ![](docs/screens/iphone-3-reschedule.png) | ![](docs/screens/iphone-5-month.png) |
 
 | Voice check-in | Settings | Dark mode | Laptop |

@@ -4,9 +4,9 @@ import type { Debrief, Task } from '../shared/types';
 import { addDays, weekdayOf } from '../shared/time';
 import { updateDebrief, useStore } from './store';
 import { navigate } from './router';
-import { dateLabel, Icon, sortTasks, today } from './ui';
+import { dateLabel, Icon, sortTasks, spring, today } from './ui';
 
-const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export function MonthView() {
   const tasks = useStore((s) => s.tasks);
@@ -39,16 +39,24 @@ export function MonthView() {
     setDir(n);
     setMonth(d.toISOString().slice(0, 7));
   };
-  const label = new Date(first + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthName = new Date(first + 'T12:00:00').toLocaleDateString(undefined, { month: 'long' });
+  const year = first.slice(0, 4);
   const upcoming = debriefs.filter((d) => d.status === 'scheduled' && d.date >= t).slice(0, 4);
+  const monthTasks = Object.values(tasks).filter((x) => x.date.startsWith(month) && x.status !== 'discarded');
+  const monthDone = monthTasks.filter((x) => x.status === 'done').length;
 
   return (
-    <div className="mx-auto max-w-3xl px-3 pb-28 pt-safe">
-      <header className="flex items-end justify-between px-1 pb-4 pt-4">
-        <h1 className="text-[30px] font-semibold leading-tight tracking-tight">{label}</h1>
+    <div className="mx-auto max-w-3xl px-3 pb-36 pt-safe">
+      <header className="flex items-end justify-between px-1 pb-4 pt-5">
+        <div>
+          <div className="text-[13px] text-muted">
+            {year} · {monthDone}/{monthTasks.length} done
+          </div>
+          <h1 className="mt-0.5 text-[28px] font-medium leading-tight tracking-tight">{monthName}</h1>
+        </div>
         <div className="flex items-center gap-1 pb-1">
           {month !== t.slice(0, 7) && (
-            <button onClick={() => (setDir(0), setMonth(t.slice(0, 7)))} className="press rounded-full border border-line px-3 py-1.5 text-[13px]">
+            <button onClick={() => (setDir(0), setMonth(t.slice(0, 7)))} className="press rounded-full bg-raised px-3 py-1.5 text-[12.5px]">
               Today
             </button>
           )}
@@ -61,26 +69,25 @@ export function MonthView() {
         </div>
       </header>
 
-      <div className="grid grid-cols-7 pb-1.5 text-center text-[11px] font-medium uppercase tracking-wide text-muted">
-        {WEEK.map((w) => (
-          <div key={w}>{w}</div>
+      <div className="grid grid-cols-7 gap-1 pb-1.5 text-center text-[11px] font-medium text-faint">
+        {WEEK.map((w, i) => (
+          <div key={i}>{w}</div>
         ))}
       </div>
 
       <AnimatePresence mode="popLayout" initial={false} custom={dir}>
         <motion.div
           key={month}
-          custom={dir}
           initial={{ opacity: 0, x: dir * 40 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: dir * -40 }}
-          transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+          transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+          style={{ willChange: 'transform' }}
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.2}
+          dragElastic={0.18}
           onDragEnd={(_, i) => (i.offset.x < -60 ? shift(1) : i.offset.x > 60 ? shift(-1) : null)}
-          className="grid grid-cols-7 overflow-hidden rounded-2xl border border-line bg-line"
-          style={{ gap: 1 }}
+          className="grid grid-cols-7 gap-1"
         >
           {days.slice(0, rows * 7).map((d) => (
             <DayCell
@@ -97,21 +104,27 @@ export function MonthView() {
         </motion.div>
       </AnimatePresence>
 
-      <div className="mt-3 flex items-center gap-4 px-1 text-[11px] text-muted">
-        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-accent" /> high priority</span>
-        <span className="flex items-center gap-1.5"><Icon name="phone" className="h-3 w-3" /> debrief</span>
-        <span className="flex items-center gap-1.5"><span className="h-[3px] w-4 rounded-full bg-fg/40" /> workload</span>
+      <div className="mt-3 flex items-center gap-4 px-1 text-[11px] text-faint">
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-red" /> high priority
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Icon name="brief" className="h-3 w-3 text-purple" /> debrief
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-[3px] w-4 rounded-full bg-accent" /> how busy
+        </span>
       </div>
 
       {upcoming.length > 0 && (
-        <section className="mt-8 px-1">
-          <div className="mb-2 text-[12px] font-medium uppercase tracking-wide text-muted">Upcoming debriefs</div>
-          <div className="divide-y divide-line rounded-2xl border border-line bg-card">
-            {upcoming.map((d) => (
-              <DebriefRow key={d.id} d={d} t={t} />
+        <section className="mt-6">
+          <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wider text-faint">Upcoming debriefs</div>
+          <div className="overflow-hidden rounded-[24px] border border-line/70 bg-card">
+            {upcoming.map((d, i) => (
+              <DebriefRow key={d.id} d={d} t={t} first={i === 0} />
             ))}
           </div>
-          <p className="mt-2 text-[12px] text-muted">Planned from your calendar: start of the week, plus the night before big days. Edit or cancel one and it stays how you set it.</p>
+          <p className="mt-2 px-1 text-[12px] text-faint">Planned from your calendar, sir: start of the week, plus the night before big days.</p>
         </section>
       )}
     </div>
@@ -126,28 +139,24 @@ function DayCell({ date, inMonth, isToday, isPast, tasks, heavy, debrief }: { da
   return (
     <button
       onClick={() => navigate(`/day/${date}`)}
-      className={`relative flex min-h-[78px] flex-col bg-card p-1.5 text-left transition-colors active:bg-bg sm:min-h-[104px] sm:p-2 ${inMonth ? '' : 'opacity-40'}`}
+      className={`press relative flex min-h-[76px] flex-col rounded-[14px] bg-card p-1.5 text-left sm:min-h-[100px] sm:p-2 ${inMonth ? '' : 'opacity-30'} ${isToday ? 'ring-1 ring-fg/40' : ''}`}
     >
       <div className="flex items-center justify-between">
-        <span className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] ${isToday ? 'bg-fg font-semibold text-bg' : isPast ? 'text-muted' : ''}`}>
+        <span className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] ${isToday ? 'bg-fg font-semibold text-bg' : isPast ? 'text-faint' : 'text-fg/90'}`}>
           {Number(date.slice(8))}
         </span>
-        {debrief && <Icon name="phone" className="h-3 w-3 text-muted" />}
+        {debrief && <Icon name="brief" className="h-3 w-3 text-purple" />}
       </div>
       {top && (
-        <div
-          className={`mt-1 line-clamp-2 hyphens-auto text-[10.5px] leading-[1.25] sm:text-[12px] ${
-            allDone ? 'text-muted line-through' : top.priority === 1 ? 'font-medium text-accent' : ''
-          }`}
-        >
+        <div className={`mt-1 line-clamp-2 break-words text-[10px] leading-[1.25] sm:text-[12px] ${allDone ? 'text-faint line-through' : top.priority === 1 ? 'font-medium text-red' : 'text-fg/80'}`}>
           {top.title}
         </div>
       )}
       <div className="mt-auto">
-        {open.length > 1 && <div className="text-[10px] text-muted">+{open.length - 1}</div>}
+        {open.length > 1 && <div className="text-[10px] text-faint">+{open.length - 1}</div>}
         {load > 0 && (
           <div className="mt-0.5 h-[3px] overflow-hidden rounded-full bg-line">
-            <div className={`h-full rounded-full ${load >= heavy ? 'bg-accent/70' : 'bg-fg/40'}`} style={{ width: `${Math.min(100, (load / heavy) * 100)}%` }} />
+            <div className={`h-full rounded-full ${load >= heavy ? 'bg-red' : 'bg-accent'}`} style={{ width: `${Math.min(100, (load / heavy) * 100)}%` }} />
           </div>
         )}
       </div>
@@ -155,35 +164,42 @@ function DayCell({ date, inMonth, isToday, isPast, tasks, heavy, debrief }: { da
   );
 }
 
-function DebriefRow({ d, t }: { d: Debrief; t: string }) {
+function DebriefRow({ d, t, first }: { d: Debrief; t: string; first: boolean }) {
   const [edit, setEdit] = useState(false);
   const [date, setDate] = useState(d.date);
   const [time, setTime] = useState(d.time);
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3">
+    <div className={`px-4 py-3 ${first ? '' : 'border-t border-line/70'}`}>
+      <button onClick={() => setEdit(!edit)} className="flex w-full items-center gap-3 text-left">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-purple/[0.14] text-purple">
+          <Icon name="brief" className="h-[18px] w-[18px]" />
+        </span>
         <div className="flex-1">
-          <div className="text-[14px]">
+          <div className="text-[14px] font-medium">
             {dateLabel(d.date, t)} · {d.time}
           </div>
           <div className="text-[12px] text-muted">{d.reason}</div>
         </div>
-        <button onClick={() => setEdit(!edit)} className="press text-[13px] text-muted">
-          {edit ? 'Close' : 'Change'}
-        </button>
-      </div>
-      {edit && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-lg border border-line px-2 py-1.5 text-sm" />
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-lg border border-line px-2 py-1.5 text-sm" />
-          <button onClick={() => (updateDebrief(d.id, { date, time }), setEdit(false))} className="press rounded-lg bg-fg px-3 py-1.5 text-sm text-bg">
-            Save
-          </button>
-          <button onClick={() => updateDebrief(d.id, { status: 'cancelled' })} className="press rounded-lg px-3 py-1.5 text-sm text-accent">
-            Cancel it
-          </button>
-        </div>
-      )}
+        <motion.span animate={{ rotate: edit ? 180 : 0 }} transition={spring} className="text-faint">
+          <Icon name="chevron" className="h-4 w-4" />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {edit && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={spring} className="overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 pt-3">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl border border-line bg-raised px-2 py-1.5 text-sm" />
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-xl border border-line bg-raised px-2 py-1.5 text-sm" />
+              <button onClick={() => (updateDebrief(d.id, { date, time }), setEdit(false))} className="press rounded-xl bg-fg px-3 py-1.5 text-sm text-bg">
+                Save
+              </button>
+              <button onClick={() => updateDebrief(d.id, { status: 'cancelled' })} className="press rounded-xl px-3 py-1.5 text-sm text-red">
+                Cancel it
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

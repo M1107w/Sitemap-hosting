@@ -35,12 +35,12 @@ export function RescheduleSheet({ task, onClose }: { task: Task | null; onClose:
         {task.dueTime && <Chip onClick={() => go(task.date, null, 'any time')}>Remove time</Chip>}
       </div>
       <div className="mt-5 flex items-center gap-3">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-xl border border-line px-3 py-2.5" />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32 rounded-xl border border-line px-3 py-2.5" />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-2xl border border-line bg-raised px-3 py-2.5" />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32 rounded-2xl border border-line bg-raised px-3 py-2.5" />
       </div>
       <button
         onClick={() => date && go(date, time || null, `${dateLabel(date, t)}${time ? ' ' + time : ''}`)}
-        className="press mt-3 w-full rounded-xl bg-fg py-3 text-[15px] font-medium text-bg"
+        className="press mt-3 w-full rounded-2xl bg-fg py-3.5 text-[15px] font-medium text-bg"
       >
         Move
       </button>
@@ -97,8 +97,8 @@ export function TaskEditor({ open, task, defaultDate, onClose }: { open: boolean
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && save()}
-        placeholder="What needs doing?"
-        className="w-full py-1 text-xl font-medium placeholder:text-muted/60"
+        placeholder="What needs doing, sir?"
+        className="w-full py-1 text-xl font-medium placeholder:text-faint"
       />
       <Label>Priority</Label>
       <div className="grid grid-cols-3 gap-2">
@@ -106,7 +106,7 @@ export function TaskEditor({ open, task, defaultDate, onClose }: { open: boolean
           <button
             key={p}
             onClick={() => setPriority(p)}
-            className={`press rounded-xl border py-2.5 text-sm ${priority === p ? (p === 1 ? 'border-accent bg-accent text-white' : 'border-fg bg-fg text-bg') : 'border-line'}`}
+            className={`press rounded-xl border py-2.5 text-sm ${priority === p ? (p === 1 ? 'border-red bg-red text-white' : 'border-fg bg-fg text-bg') : 'border-line bg-raised'}`}
           >
             {PRIORITY_LABEL[p]}
           </button>
@@ -114,8 +114,8 @@ export function TaskEditor({ open, task, defaultDate, onClose }: { open: boolean
       </div>
       <Label>When</Label>
       <div className="flex items-center gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-xl border border-line px-3 py-2.5" />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32 rounded-xl border border-line px-3 py-2.5" />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-2xl border border-line bg-raised px-3 py-2.5" />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32 rounded-2xl border border-line bg-raised px-3 py-2.5" />
       </div>
       <Label>How long</Label>
       <div className="flex flex-wrap gap-2">
@@ -129,15 +129,15 @@ export function TaskEditor({ open, task, defaultDate, onClose }: { open: boolean
           inputMode="numeric"
           value={est}
           onChange={(e) => setEst(Math.max(0, Number(e.target.value)))}
-          className="w-20 rounded-full border border-line px-3 py-2 text-sm"
+          className="w-20 rounded-full border border-line bg-raised px-3 py-2 text-sm"
           aria-label="Minutes"
         />
       </div>
       <Label>{task ? 'Add steps' : 'Steps'} <span className="font-normal">(one per line, “20m” at the end for time)</span></Label>
-      <textarea value={steps} onChange={(e) => setSteps(e.target.value)} rows={3} placeholder={'Outline 20m\nDraft 60m'} className="w-full resize-none rounded-xl border border-line px-3 py-2.5 text-[15px] placeholder:text-muted/60" />
+      <textarea value={steps} onChange={(e) => setSteps(e.target.value)} rows={3} placeholder={'Outline 20m\nDraft 60m'} className="w-full resize-none rounded-2xl border border-line bg-raised px-3 py-2.5 text-[15px] placeholder:text-faint" />
       <Label>Notes</Label>
-      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full resize-none rounded-xl border border-line px-3 py-2.5 text-[15px]" />
-      <button onClick={save} disabled={!title.trim()} className="press mt-4 w-full rounded-xl bg-fg py-3 text-[15px] font-medium text-bg disabled:opacity-40">
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full resize-none rounded-2xl border border-line bg-raised px-3 py-2.5 text-[15px]" />
+      <button onClick={save} disabled={!title.trim()} className="press mt-4 w-full rounded-2xl bg-fg py-3.5 text-[15px] font-medium text-bg disabled:opacity-40">
         {task ? 'Save' : 'Add task'}
       </button>
     </Sheet>
@@ -145,5 +145,5 @@ export function TaskEditor({ open, task, defaultDate, onClose }: { open: boolean
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2 mt-5 text-[12px] font-medium uppercase tracking-wide text-muted">{children}</div>;
+  return <div className="mb-2 mt-5 text-[11px] font-medium uppercase tracking-wider text-faint">{children}</div>;
 }

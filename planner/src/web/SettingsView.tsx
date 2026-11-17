@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Settings } from '../shared/types';
 import { api, logout, saveSettings, setSleep, useStore } from './store';
 import { navigate } from './router';
-import { dateLabel, Icon, today } from './ui';
+import { dateLabel, Icon, spring, today } from './ui';
 import { pickVoice } from './voice';
+
+type IconName = Parameters<typeof Icon>[0]['name'];
 
 function urlB64ToUint8Array(b64: string) {
   const pad = '='.repeat((4 - (b64.length % 4)) % 4);
@@ -60,6 +63,7 @@ export function SettingsView() {
   const online = useStore((x) => x.online);
   const pending = useStore((x) => x.pending);
   const push = usePush();
+  const [openBox, setOpenBox] = useState<string | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
     if (!('speechSynthesis' in window)) return;
@@ -68,195 +72,184 @@ export function SettingsView() {
     speechSynthesis.addEventListener?.('voiceschanged', load);
     return () => speechSynthesis.removeEventListener?.('voiceschanged', load);
   }, []);
-  const quiet = checkin && checkin.quietUntil > Date.now();
+  const quiet = !!checkin && checkin.quietUntil > Date.now();
   const set = (p: Partial<Settings>) => saveSettings(p);
+  const box = (id: string) => ({ open: openBox === id, onToggle: () => setOpenBox(openBox === id ? null : id) });
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-28 pt-safe">
-      <h1 className="pb-4 pt-4 text-[30px] font-semibold tracking-tight">Settings</h1>
+    <div className="mx-auto max-w-lg px-4 pb-36 pt-safe">
+      <header className="pb-4 pt-5">
+        <div className="text-[13px] text-muted">Only what matters, sir</div>
+        <h1 className="mt-0.5 text-[28px] font-medium leading-tight tracking-tight">Settings</h1>
+      </header>
 
-      <Group title="Notifications">
-        {push.status === 'needs-install' ? (
-          <Row label="Add to Home Screen first">
-            <span className="max-w-[60%] text-right text-[13px] text-muted">On iPhone: Share → Add to Home Screen, then open it from there.</span>
-          </Row>
-        ) : (
-          <Row label="Push notifications" hint={push.status === 'denied' ? 'Blocked. Allow in iOS Settings → Notifications → Today' : undefined}>
+      <div className="space-y-2.5">
+        {/* Two switches up front */}
+        <Card>
+          <Head icon="bell" tint="text-cyan bg-cyan/[0.12]" title="Notifications" sub={pushSub(push.status)}>
             {push.status === 'on' ? (
               <Toggle on onChange={push.disable} />
-            ) : push.status === 'unsupported' ? (
-              <span className="text-[13px] text-muted">Not supported here</span>
-            ) : (
-              <button onClick={push.enable} disabled={push.status === 'working' || push.status === 'denied'} className="press rounded-full bg-fg px-4 py-1.5 text-[13px] text-bg disabled:opacity-40">
+            ) : push.status === 'off' || push.status === 'working' ? (
+              <button onClick={push.enable} disabled={push.status === 'working'} className="press rounded-full bg-fg px-4 py-1.5 text-[13px] text-bg disabled:opacity-40">
                 Turn on
               </button>
-            )}
+            ) : null}
+          </Head>
+        </Card>
+        <Card>
+          <Head icon="moon" tint="text-yellow bg-yellow/[0.12]" title="Going to sleep" sub={quiet ? `Quiet till ${s.wakeTime}` : 'No check-ins or nagging till morning'}>
+            <Toggle on={quiet} onChange={() => setSleep(!quiet)} />
+          </Head>
+        </Card>
+
+        {/* Everything else lives in boxes */}
+        <Expand {...box('rem')} icon="clock" tint="text-green bg-green/[0.12]" title="Reminders" sub={`${s.reminderLeadMin} min before, then every ${s.snoozeEveryMin}`}>
+          <Row label="Heads-up before">
+            <Num value={s.reminderLeadMin} onChange={(v) => set({ reminderLeadMin: v })} suffix="min" />
           </Row>
-        )}
-        {push.status === 'on' && (
-          <Row label="Send a test">
-            <button onClick={() => api('/api/push/test', { method: 'POST', json: {} })} className="press text-[13px] text-muted">
-              Send
-            </button>
+          <Row label="Snooze every">
+            <Num value={s.snoozeEveryMin} onChange={(v) => set({ snoozeEveryMin: v })} suffix="min" />
           </Row>
-        )}
-        <Row label="Heads-up before due">
-          <Num value={s.reminderLeadMin} onChange={(v) => set({ reminderLeadMin: v })} suffix="min" />
-        </Row>
-        <Row label="Snooze every" hint={`then every ${s.snoozeFastEveryMin} min after ${s.snoozeFastAfterMin} min overdue`}>
-          <Num value={s.snoozeEveryMin} onChange={(v) => set({ snoozeEveryMin: v })} suffix="min" />
-        </Row>
-      </Group>
+          {push.status === 'on' && (
+            <Row label="Send a test">
+              <button onClick={() => api('/api/push/test', { method: 'POST', json: {} })} className="press rounded-full bg-fg/[0.08] px-3 py-1 text-[13px]">
+                Send
+              </button>
+            </Row>
+          )}
+        </Expand>
 
-      <Group title="Check-ins">
-        <Row label="I'm going to sleep" hint={quiet ? `Quiet till ${new Date(checkin!.quietUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Stops check-ins and snoozes till wake time'}>
-          <Toggle on={!!quiet} onChange={() => setSleep(!quiet)} />
-        </Row>
-        <Row label="Wind-down" hint="After this, check-ins ask “u up?” first">
-          <Time value={s.windDown} onChange={(v) => set({ windDown: v })} />
-        </Row>
-        <Row label="Wake time" hint="A “no” or no answer = quiet till here">
-          <Time value={s.wakeTime} onChange={(v) => set({ wakeTime: v })} />
-        </Row>
-        <Row label="Max per day">
-          <Num value={s.checkinsPerDayMax} onChange={(v) => set({ checkinsPerDayMax: v })} />
-        </Row>
-        <Row label="At least this far apart">
-          <Num value={s.checkinMinGapMin} onChange={(v) => set({ checkinMinGapMin: v })} suffix="min" />
-        </Row>
-      </Group>
+        <Expand {...box('chk')} icon="mic" tint="text-cyan bg-cyan/[0.12]" title="Check-ins" sub={`Up to ${s.checkinsPerDayMax} a day · asks first after ${s.windDown}`}>
+          <Row label="Max per day">
+            <Num value={s.checkinsPerDayMax} onChange={(v) => set({ checkinsPerDayMax: v })} />
+          </Row>
+          <Row label="Ask first after">
+            <Time value={s.windDown} onChange={(v) => set({ windDown: v })} />
+          </Row>
+          <Row label="Wake time">
+            <Time value={s.wakeTime} onChange={(v) => set({ wakeTime: v })} />
+          </Row>
+        </Expand>
 
-      <Group title="Debriefs">
-        <Row label="Weekly debrief on">
-          <select value={s.debriefWeekday} onChange={(e) => set({ debriefWeekday: Number(e.target.value) })} className="rounded-lg border border-line px-2 py-1 text-[14px]">
-            {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => (
-              <option key={d} value={i}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </Row>
-        <Row label="Debrief time">
-          <Time value={s.debriefTime} onChange={(v) => set({ debriefTime: v })} />
-        </Row>
-        <Row label="Max per week">
-          <Num value={s.debriefsPerWeekMax} onChange={(v) => set({ debriefsPerWeekMax: v })} />
-        </Row>
-        <Row label="“Big day” means" hint="Adds a debrief the night before">
-          <Num value={Math.round(s.heavyDayMin / 60)} onChange={(v) => set({ heavyDayMin: v * 60 })} suffix="h+" />
-        </Row>
-      </Group>
-
-      <Group title="Voice">
-        <Row label="AI brain" hint={health?.ollama ? `${health.model} (local, open-source)` : 'Model offline: simple commands only'}>
-          <Dot ok={!!health?.ollama} />
-        </Row>
-        <Row label="Speech to text" hint={health?.whisper ? 'whisper.cpp on your server' : 'Using the device recogniser'}>
-          <Dot ok={!!health?.whisper} />
-        </Row>
-        {!health?.tts && voices.length > 0 && (
-          <Row label="Voice">
-            <select value={s.voiceName || pickVoice('')?.name || ''} onChange={(e) => set({ voiceName: e.target.value })} className="max-w-[55vw] rounded-lg border border-line px-2 py-1 text-[14px]">
-              {voices.map((v) => (
-                <option key={v.name} value={v.name}>
-                  {v.name} ({v.lang})
+        <Expand {...box('deb')} icon="brief" tint="text-purple bg-purple/[0.14]" title="Debriefs" sub={`${DAYS[s.debriefWeekday]}s ${s.debriefTime} + before big days`}>
+          <Row label="Weekly on">
+            <select value={s.debriefWeekday} onChange={(e) => set({ debriefWeekday: Number(e.target.value) })} className="rounded-xl border border-line bg-raised px-2 py-1 text-[14px]">
+              {DAYS.map((d, i) => (
+                <option key={d} value={i}>
+                  {d}
                 </option>
               ))}
             </select>
           </Row>
-        )}
-        <Row label="Start a check-in now">
-          <button onClick={() => navigate('/call?mode=chat')} className="press text-[13px] text-muted">
-            Talk
-          </button>
-        </Row>
-      </Group>
-
-      <CallHistory />
-
-      <Group title="App">
-        <Row label="Sync" hint={pending ? `${pending} change(s) waiting to sync` : undefined}>
-          <span className="flex items-center gap-2 text-[13px] text-muted">
-            <Dot ok={online} /> {online ? 'Online' : 'Offline'}
-          </span>
-        </Row>
-        {!isStandalone() && (
-          <Row label="Install">
-            <span className="max-w-[60%] text-right text-[13px] text-muted">{isIOS() ? 'Share → Add to Home Screen' : 'Browser menu → Install app'}</span>
+          <Row label="Time">
+            <Time value={s.debriefTime} onChange={(v) => set({ debriefTime: v })} />
           </Row>
-        )}
-        <Row label="Log out">
-          <button onClick={logout} className="press text-[13px] text-accent">
-            Log out
-          </button>
-        </Row>
-      </Group>
+          <Row label="Max per week">
+            <Num value={s.debriefsPerWeekMax} onChange={(v) => set({ debriefsPerWeekMax: v })} />
+          </Row>
+        </Expand>
+
+        <Expand {...box('ai')} icon="spark" tint="text-orange bg-orange/[0.12]" title="Voice & AI" sub={health?.ollama ? 'Online' : 'AI offline: simple commands only'}>
+          <Row label="AI brain">
+            <Status ok={!!health?.ollama} text={health?.ollama ? health.model : 'offline'} />
+          </Row>
+          <Row label="Speech to text">
+            <Status ok={!!health?.whisper} text={health?.whisper ? 'server' : 'device'} />
+          </Row>
+          {!health?.tts && voices.length > 0 && (
+            <Row label="Voice">
+              <select value={s.voiceName || pickVoice('')?.name || ''} onChange={(e) => set({ voiceName: e.target.value })} className="max-w-[50vw] rounded-xl border border-line bg-raised px-2 py-1 text-[14px]">
+                {voices.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          )}
+        </Expand>
+
+        <Expand {...box('acc')} icon="settings" tint="text-fg bg-fg/[0.08]" title="Account" sub={online ? (pending ? `${pending} change(s) syncing` : 'Synced') : 'Offline'}>
+          <Row label="Sync">
+            <Status ok={online} text={online ? 'online' : 'offline'} />
+          </Row>
+          {!isStandalone() && (
+            <Row label="Install">
+              <span className="max-w-[55%] text-right text-[13px] text-muted">{isIOS() ? 'Share → Add to Home Screen' : 'Address bar → Install'}</span>
+            </Row>
+          )}
+          <Row label="Log out">
+            <button onClick={logout} className="press text-[13px] text-red">
+              Log out
+            </button>
+          </Row>
+        </Expand>
+      </div>
     </div>
   );
 }
 
-function CallHistory() {
-  const calls = useStore((x) => x.calls);
-  const tz = useStore((x) => x.settings.timezone);
-  const t = today(tz);
-  const shown = calls.filter((c) => c.transcript.length > 1 || c.changes.length).slice(0, 6);
-  if (!shown.length) return null;
+function pushSub(s: string) {
+  if (s === 'on') return 'Reminders + check-ins on this device';
+  if (s === 'needs-install') return 'Add to Home Screen first, then open it from there';
+  if (s === 'denied') return 'Blocked: allow it in iOS Settings → Notifications';
+  if (s === 'unsupported') return 'Not supported in this browser';
+  return 'Off on this device';
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return <div className="rounded-[22px] border border-line/70 bg-card">{children}</div>;
+}
+
+function Head({ icon, tint, title, sub, children }: { icon: IconName; tint: string; title: string; sub?: string; children?: ReactNode }) {
   return (
-    <Group title="Recent calls">
-      {shown.map((c) => {
-        const d = new Date(c.startedAt);
-        const date = d.toISOString().slice(0, 10);
-        return (
-          <details key={c.id} className="px-4 py-3">
-            <summary className="flex cursor-pointer list-none items-center justify-between text-[14px]">
-              <span>
-                {c.kind === 'debrief' ? 'Debrief' : 'Check-in'} · {dateLabel(date, t)} {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <span className="text-[12px] text-muted">{c.changes.length} change{c.changes.length === 1 ? '' : 's'}</span>
-            </summary>
-            <div className="mt-2 space-y-1 text-[13px]">
-              {c.changes.map((x, i) => (
-                <div key={i} className="text-ok">
-                  ✓ {x.summary}
-                </div>
-              ))}
-              {c.transcript.map((l, i) => (
-                <div key={i} className={l.role === 'user' ? 'text-muted' : ''}>
-                  {l.role === 'user' ? 'You: ' : ''}
-                  {l.text}
-                </div>
-              ))}
-            </div>
-          </details>
-        );
-      })}
-    </Group>
+    <div className="flex items-center gap-3.5 px-3.5 py-3">
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[13px] ${tint}`}>
+        <Icon name={icon} className="h-[20px] w-[20px]" stroke={1.9} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-medium">{title}</div>
+        {sub && <div className="truncate text-[12px] text-muted">{sub}</div>}
+      </div>
+      {children}
+    </div>
   );
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Expand({ open, onToggle, icon, tint, title, sub, children }: { open: boolean; onToggle: () => void; icon: IconName; tint: string; title: string; sub: string; children: ReactNode }) {
   return (
-    <section className="mb-6">
-      <div className="mb-2 px-1 text-[12px] font-medium uppercase tracking-wide text-muted">{title}</div>
-      <div className="divide-y divide-line rounded-2xl border border-line bg-card">{children}</div>
-    </section>
+    <motion.div layout="position" transition={spring} className={`overflow-hidden rounded-[22px] border border-line/70 ${open ? 'bg-raised' : 'bg-card'}`}>
+      <button onClick={onToggle} className="w-full text-left">
+        <Head icon={icon} tint={tint} title={title} sub={sub}>
+          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={spring} className="text-faint">
+            <Icon name="chevron" className="h-5 w-5" />
+          </motion.span>
+        </Head>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ ...spring, opacity: { duration: 0.15 } }}>
+            <div className="mx-3.5 border-t border-line/70 pb-1">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2.5">
-      <div>
-        <div className="text-[15px]">{label}</div>
-        {hint && <div className="text-[12px] text-muted">{hint}</div>}
-      </div>
+    <div className="flex min-h-[50px] items-center justify-between gap-3 py-2">
+      <div className="text-[14px] text-fg/90">{label}</div>
       {children}
     </div>
   );
 }
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
-    <button onClick={onChange} role="switch" aria-checked={on} className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${on ? 'bg-ok' : 'bg-line'}`}>
-      <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+    <button onClick={onChange} role="switch" aria-checked={on} className={`relative h-[30px] w-[50px] shrink-0 rounded-full transition-colors duration-200 ${on ? 'bg-accent' : 'bg-line'}`}>
+      <motion.span layout transition={spring} className={`absolute top-[3px] h-6 w-6 rounded-full bg-white shadow ${on ? 'right-[3px]' : 'left-[3px]'}`} />
     </button>
   );
 }
@@ -264,24 +257,82 @@ function Num({ value, onChange, suffix }: { value: number; onChange: (v: number)
   const [v, setV] = useState(String(value));
   useEffect(() => setV(String(value)), [value]);
   return (
-    <span className="flex items-center gap-1.5 text-[14px] text-muted">
+    <span className="flex items-center gap-1.5 text-[13px] text-muted">
       <input
         type="number"
         inputMode="numeric"
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => Number(v) !== value && v !== '' && onChange(Math.max(0, Number(v)))}
-        className="w-14 rounded-lg border border-line px-2 py-1 text-right text-fg"
+        className="w-14 rounded-xl border border-line bg-bg/60 px-2 py-1 text-right text-fg"
       />
       {suffix}
     </span>
   );
 }
 function Time({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return <input type="time" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="rounded-lg border border-line px-2 py-1 text-[14px]" />;
+  return <input type="time" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="rounded-xl border border-line bg-bg/60 px-2 py-1 text-[14px]" />;
 }
-function Dot({ ok }: { ok: boolean }) {
-  return <span className={`inline-block h-2 w-2 rounded-full ${ok ? 'bg-ok' : 'bg-muted/50'}`} />;
+function Status({ ok, text }: { ok: boolean; text: string }) {
+  return (
+    <span className="flex items-center gap-2 text-[13px] text-muted">
+      <span className={`h-2 w-2 rounded-full ${ok ? 'bg-accent' : 'bg-faint'}`} />
+      {text}
+    </span>
+  );
+}
+
+// ------------------------------------------------------------ Talk tab
+
+function CallHistory() {
+  const calls = useStore((x) => x.calls);
+  const tz = useStore((x) => x.settings.timezone);
+  const t = today(tz);
+  const shown = calls.filter((c) => c.transcript.length > 1 || c.changes.length).slice(0, 6);
+  const [open, setOpen] = useState<string | null>(null);
+  if (!shown.length) return null;
+  return (
+    <section className="mt-6">
+      <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wider text-faint">Recent calls</div>
+      <div className="space-y-2">
+        {shown.map((c) => {
+          const d = new Date(c.startedAt);
+          const isOpen = open === c.id;
+          return (
+            <motion.div key={c.id} layout="position" transition={spring} className="overflow-hidden rounded-[20px] border border-line/70 bg-card">
+              <button onClick={() => setOpen(isOpen ? null : c.id)} className="flex w-full items-center justify-between px-4 py-3 text-left text-[14px]">
+                <span>
+                  {c.kind === 'debrief' ? 'Debrief' : 'Check-in'} · {dateLabel(d.toISOString().slice(0, 10), t)} {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="text-[12px] text-muted">
+                  {c.changes.length} change{c.changes.length === 1 ? '' : 's'}
+                </span>
+              </button>
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={spring}>
+                    <div className="space-y-1 px-4 pb-3 text-[13px]">
+                      {c.changes.map((x, i) => (
+                        <div key={i} className="text-green">
+                          ✓ {x.summary}
+                        </div>
+                      ))}
+                      {c.transcript.map((l, i) => (
+                        <div key={i} className={l.role === 'user' ? 'text-muted' : ''}>
+                          {l.role === 'user' ? 'You: ' : ''}
+                          {l.text}
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export function TalkView() {
@@ -290,15 +341,17 @@ export function TalkView() {
   const t = today(tz);
   const next = debriefs.find((d) => d.status === 'scheduled' && d.date >= t);
   return (
-    <div className="mx-auto max-w-lg px-4 pb-28 pt-safe">
-      <h1 className="pb-2 pt-4 text-[30px] font-semibold tracking-tight">Talk</h1>
-      <p className="mb-6 text-[14px] text-muted">Tell me what's going on. I'll move, add and tick things off for you.</p>
-      <div className="grid gap-3">
-        <BigBtn icon="talk" title="Quick check-in" sub="Talk through what you're doing now" onClick={() => navigate('/call?mode=chat')} />
-        <BigBtn icon="month" title="Debrief now" sub="What's left today, tomorrow and the rest of the week" onClick={() => navigate('/call?mode=debrief')} />
+    <div className="mx-auto max-w-lg px-4 pb-36 pt-safe">
+      <header className="pb-4 pt-5">
+        <div className="text-[13px] text-muted">I'll move, add and tick things off for you</div>
+        <h1 className="mt-0.5 text-[28px] font-medium leading-tight tracking-tight">At your service, sir.</h1>
+      </header>
+      <div className="space-y-2.5">
+        <BigBtn icon="mic" tint="text-cyan bg-cyan/[0.12]" title="Quick check-in" sub="Talk through what you're doing now" onClick={() => navigate('/call?mode=chat')} />
+        <BigBtn icon="brief" tint="text-purple bg-purple/[0.14]" title="Debrief now" sub="Today, tomorrow and the rest of the week" onClick={() => navigate('/call?mode=debrief')} />
       </div>
       {next && (
-        <p className="mt-6 text-[13px] text-muted">
+        <p className="mt-4 px-1 text-[13px] text-muted">
           Next scheduled debrief: {dateLabel(next.date, t)} at {next.time} · {next.reason}
         </p>
       )}
@@ -307,16 +360,17 @@ export function TalkView() {
   );
 }
 
-function BigBtn({ icon, title, sub, onClick }: { icon: 'talk' | 'month'; title: string; sub: string; onClick: () => void }) {
+function BigBtn({ icon, tint, title, sub, onClick }: { icon: IconName; tint: string; title: string; sub: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="press flex items-center gap-4 rounded-2xl border border-line bg-card px-4 py-4 text-left">
-      <span className="grid h-11 w-11 place-items-center rounded-full bg-fg text-bg">
-        <Icon name={icon} />
+    <button onClick={onClick} className="press flex w-full items-center gap-3.5 rounded-[22px] border border-line/70 bg-card px-3.5 py-3.5 text-left">
+      <span className={`grid h-12 w-12 place-items-center rounded-2xl ${tint}`}>
+        <Icon name={icon} className="h-[22px] w-[22px]" stroke={1.9} />
       </span>
-      <span>
-        <span className="block text-[16px] font-medium">{title}</span>
-        <span className="block text-[13px] text-muted">{sub}</span>
+      <span className="flex-1">
+        <span className="block text-[15.5px] font-medium">{title}</span>
+        <span className="block text-[12.5px] text-muted">{sub}</span>
       </span>
+      <Icon name="right" className="h-5 w-5 text-faint" />
     </button>
   );
 }

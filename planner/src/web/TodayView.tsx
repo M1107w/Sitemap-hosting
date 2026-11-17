@@ -1,12 +1,33 @@
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
-import type { Task } from '../shared/types';
+import { useEffect, useMemo, useState } from 'react';
+import type { Settings, Task } from '../shared/types';
 import { addDays, toMin } from '../shared/time';
-import { setSleep, useStore } from './store';
+import { openEditor, useStore } from './store';
 import { TaskCard } from './TaskCard';
-import { RescheduleSheet, TaskEditor } from './sheets';
-import { dateLabel, fmtDur, Icon, nowMin, remainingMin, sortTasks, today } from './ui';
+import { RescheduleSheet } from './sheets';
+import { BlockBar, dateLabel, fmtDur, greetingFor, Icon, nowMin, remainingMin, sortTasks, spring, today } from './ui';
 import { navigate } from './router';
+
+/** The one-liner from the assistant at the top of the day. */
+function assistantLine(open: Task[], carried: Task[], done: number, s: Settings, quiet: boolean, isToday: boolean, dayName: string) {
+  if (quiet) return <>Quiet mode's on till <b>{s.wakeTime}</b>, sir. Sleep well.</>;
+  if (!isToday) {
+    const n = open.length;
+    return n ? <>{n} lined up for {dayName}, sir. About <b>{fmtDur(open.reduce((a, t) => a + t.estimateMin, 0))}</b> of work.</> : <>Nothing planned for {dayName} yet, sir.</>;
+  }
+  const now = nowMin(s.timezone);
+  const all = [...carried, ...open];
+  if (!all.length) return done ? <>All done for today, sir. Nicely handled.</> : <>Nothing planned yet, sir. Tap <b>+</b> to add something.</>;
+  const overdue = all.find((t) => t.dueTime && toMin(t.dueTime) < now) ?? carried[0];
+  if (overdue) return <><b>{overdue.title}</b> {overdue.dueTime && overdue.date === today(s.timezone) ? <>was due at <b>{overdue.dueTime}</b></> : 'is overdue'}, sir. Swipe it left if you want to move it.</>;
+  const next = open.filter((t) => t.dueTime).sort((a, b) => a.dueTime!.localeCompare(b.dueTime!))[0];
+  if (next) {
+    const mins = toMin(next.dueTime!) - now;
+    if (mins <= 120) return <>Your <b>{next.title}</b> is up at <b>{next.dueTime}</b>, sir. That leaves you <b>{fmtDur(mins)}</b>.</>;
+    return <>Next up is <b>{next.title}</b> at <b>{next.dueTime}</b>, sir. Plenty of time.</>;
+  }
+  return <>Top of the list: <b>{all.sort(sortTasks)[0].title}</b>, sir. Whenever you're ready.</>;
+}
 
 export function TodayView({ date: dateProp, focusTask }: { date?: string; focusTask?: string | null }) {
   const tasks = useStore((s) => s.tasks);
@@ -18,9 +39,12 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
   const isToday = date === t;
   const [expanded, setExpanded] = useState<string | null>(focusTask ?? null);
   const [moving, setMoving] = useState<Task | null>(null);
-  const [editing, setEditing] = useState<Task | null>(null);
-  const [adding, setAdding] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const h = setInterval(() => tick((n) => n + 1), 60_000); // keep "x minutes" fresh
+    return () => clearInterval(h);
+  }, []);
 
   const { open, carried, done } = useMemo(() => {
     const all = Object.values(tasks);
@@ -36,19 +60,20 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
   const free = isToday ? Math.max(0, dayEnd - nowMin(settings.timezone) - planned) : Math.max(0, dayEnd - toMin(settings.wakeTime) - planned);
   const total = open.length + done.length + carried.length;
   const debrief = debriefs.find((d) => d.date === date && d.status === 'scheduled');
-  const quiet = checkin && checkin.quietUntil > Date.now();
-
+  const quiet = !!checkin && checkin.quietUntil > Date.now();
   const d = new Date(date + 'T12:00:00');
+  const dayName = dateLabel(date, t);
+
   return (
-    <div className="mx-auto max-w-lg px-4 pb-28 pt-safe">
-      <header className="flex items-end justify-between pb-1 pt-4">
-        <div>
-          <div className="text-[13px] text-muted">{d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}</div>
-          <h1 className="text-[30px] font-semibold leading-tight tracking-tight">{isToday ? 'Today' : dateLabel(date, t)}</h1>
+    <div className="mx-auto max-w-lg px-4 pb-36 pt-safe">
+      <header className="flex items-end justify-between pb-1 pt-5">
+        <div className="min-w-0">
+          <div className="text-[13px] text-muted">{d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          <h1 className="mt-0.5 truncate text-[28px] font-medium leading-tight tracking-tight">{isToday ? greetingFor(nowMin(settings.timezone)) : dayName}</h1>
         </div>
-        <div className="flex items-center gap-1 pb-1">
+        <div className="flex shrink-0 items-center gap-1 pb-1">
           {!isToday && (
-            <button onClick={() => navigate('/')} className="press rounded-full border border-line px-3 py-1.5 text-[13px]">
+            <button onClick={() => navigate('/')} className="press rounded-full bg-raised px-3 py-1.5 text-[12.5px]">
               Today
             </button>
           )}
@@ -58,93 +83,110 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
           <button aria-label="Next day" onClick={() => navigate(`/day/${addDays(date, 1)}`)} className="press grid h-9 w-9 place-items-center rounded-full text-muted">
             <Icon name="right" />
           </button>
-          {isToday && (
-            <button
-              aria-label={quiet ? 'Wake up: allow check-ins' : "I'm going to sleep"}
-              onClick={() => setSleep(!quiet)}
-              className={`press grid h-9 w-9 place-items-center rounded-full ${quiet ? 'bg-fg text-bg' : 'text-muted'}`}
-            >
-              <Icon name="moon" className="h-[18px] w-[18px]" />
-            </button>
-          )}
         </div>
       </header>
 
-      <div className="mb-4 text-[13px] text-muted">
-        {total === 0 ? 'Nothing planned' : `${open.length + carried.length} to do · ${fmtDur(planned)} planned · ${fmtDur(free)} free`}
-        {quiet && ' · quiet till ' + settings.wakeTime}
-      </div>
-      {total > 0 && (
-        <div className="mb-5 h-[3px] overflow-hidden rounded-full bg-line">
-          <motion.div className="h-full rounded-full bg-ok" initial={false} animate={{ width: `${(done.length / total) * 100}%` }} transition={{ duration: 0.4 }} />
+      {/* Summary card */}
+      <motion.section layout="position" transition={spring} className="mt-4 rounded-[24px] border border-line/70 bg-card p-5">
+        <div className="text-[34px] font-light leading-none tracking-tight">{fmtDur(planned)}</div>
+        <div className="mt-2 text-[13px] text-muted">
+          planned · {fmtDur(free)} free{quiet ? ' · quiet mode' : ''}
         </div>
-      )}
+        <BlockBar value={total ? done.length / total : 0} className="mt-5" />
+        <div className="mt-2 flex justify-between text-[12px] text-muted">
+          <span>
+            {done.length} of {total} done
+          </span>
+          <span>{total ? Math.round((done.length / total) * 100) : 0}%</span>
+        </div>
+        <p className="mt-4 text-[14.5px] leading-relaxed text-fg/85 [&_b]:font-medium [&_b]:text-fg">
+          {assistantLine(open, carried, done.length, settings, quiet, isToday, dayName.toLowerCase())}
+        </p>
+      </motion.section>
 
       {debrief && (
         <button
           onClick={() => navigate(`/call?mode=debrief&debrief=${debrief.id}`)}
-          className="press mb-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-3 text-left"
+          className="press mt-3 flex w-full items-center gap-3 rounded-[20px] border border-line/70 bg-card px-4 py-3 text-left"
         >
-          <Icon name="phone" className="h-4 w-4 text-muted" />
-          <div className="flex-1 text-[14px]">
-            Debrief at {debrief.time}
+          <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-purple/[0.14] text-purple">
+            <Icon name="brief" />
+          </span>
+          <div className="flex-1">
+            <div className="text-[14.5px] font-medium">Debrief at {debrief.time}</div>
             <div className="text-[12px] text-muted">{debrief.reason}</div>
           </div>
-          <span className="text-[12px] text-muted">Start now</span>
+          <span className="text-[12px] text-muted">Start</span>
         </button>
       )}
 
+      {/* Task list */}
       <LayoutGroup>
-        {carried.length > 0 && <SectionLabel>Carried over</SectionLabel>}
-        <div className="space-y-2.5">
-          <AnimatePresence initial={false}>
-            {carried.map((x) => (
-              <Item key={x.id}>
-                <TaskCard
-                  task={x}
-                  overdueLabel={dateLabel(x.date, t).toLowerCase()}
-                  expanded={expanded === x.id}
-                  onToggle={() => setExpanded(expanded === x.id ? null : x.id)}
-                  onReschedule={() => setMoving(x)}
-                  onEdit={() => setEditing(x)}
-                />
-              </Item>
-            ))}
-          </AnimatePresence>
-        </div>
-        {carried.length > 0 && open.length > 0 && <SectionLabel>{isToday ? 'Today' : ''}</SectionLabel>}
-        <div className="space-y-2.5">
-          <AnimatePresence initial={false}>
-            {open.map((x) => (
-              <Item key={x.id}>
-                <TaskCard
-                  task={x}
-                  overdueLabel={isToday && x.dueTime && toMin(x.dueTime) < nowMin(settings.timezone) ? 'overdue' : undefined}
-                  expanded={expanded === x.id}
-                  onToggle={() => setExpanded(expanded === x.id ? null : x.id)}
-                  onReschedule={() => setMoving(x)}
-                  onEdit={() => setEditing(x)}
-                />
-              </Item>
-            ))}
-          </AnimatePresence>
-        </div>
+        {total > 0 && (
+          <motion.section layout="position" transition={spring} className="mt-3 rounded-[24px] border border-line/70 bg-card p-1.5">
+            {carried.length > 0 && <Label>Carried over</Label>}
+            <AnimatePresence initial={false}>
+              {carried.map((x) => (
+                <Item key={x.id}>
+                  <TaskCard
+                    task={x}
+                    overdueLabel={dateLabel(x.date, t).toLowerCase()}
+                    expanded={expanded === x.id}
+                    onToggle={() => setExpanded(expanded === x.id ? null : x.id)}
+                    onReschedule={() => setMoving(x)}
+                    onEdit={() => openEditor(date, x)}
+                  />
+                </Item>
+              ))}
+            </AnimatePresence>
+            {carried.length > 0 && open.length > 0 && <Label>{isToday ? 'Today' : ''}</Label>}
+            <AnimatePresence initial={false}>
+              {open.map((x) => (
+                <Item key={x.id}>
+                  <TaskCard
+                    task={x}
+                    overdueLabel={isToday && x.dueTime && toMin(x.dueTime) < nowMin(settings.timezone) ? x.dueTime : undefined}
+                    expanded={expanded === x.id}
+                    onToggle={() => setExpanded(expanded === x.id ? null : x.id)}
+                    onReschedule={() => setMoving(x)}
+                    onEdit={() => openEditor(date, x)}
+                  />
+                </Item>
+              ))}
+            </AnimatePresence>
+            {open.length === 0 && carried.length === 0 && <div className="px-4 py-5 text-center text-[13.5px] text-muted">Everything's ticked off.</div>}
+          </motion.section>
+        )}
 
         {total === 0 && (
-          <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setAdding(true)} className="press mt-10 w-full py-10 text-center text-muted">
+          <motion.button
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => openEditor(date)}
+            className="press mt-3 w-full rounded-[24px] border border-dashed border-line py-10 text-center"
+          >
             <div className="text-[15px]">A clear day.</div>
-            <div className="mt-1 text-[13px]">Tap to add something</div>
+            <div className="mt-1 text-[13px] text-muted">Tap to add something</div>
           </motion.button>
         )}
 
         {done.length > 0 && (
-          <motion.div layout className="mt-6">
-            <button onClick={() => setShowDone(!showDone)} className="press py-2 text-[13px] text-muted">
+          <motion.div layout="position" transition={spring} className="mt-4">
+            <button onClick={() => setShowDone(!showDone)} className="press flex items-center gap-1 px-2 py-2 text-[13px] text-muted">
               {showDone ? 'Hide' : 'Show'} done ({done.length})
+              <motion.span animate={{ rotate: showDone ? 180 : 0 }} transition={spring}>
+                <Icon name="chevron" className="h-4 w-4" />
+              </motion.span>
             </button>
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {showDone && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2.5 overflow-hidden">
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={spring}
+                  className="overflow-hidden rounded-[24px] border border-line/70 bg-card p-1.5"
+                >
                   {done.map((x) => (
                     <TaskCard
                       key={x.id}
@@ -152,7 +194,7 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
                       expanded={expanded === x.id}
                       onToggle={() => setExpanded(expanded === x.id ? null : x.id)}
                       onReschedule={() => setMoving(x)}
-                      onEdit={() => setEditing(x)}
+                      onEdit={() => openEditor(date, x)}
                     />
                   ))}
                 </motion.div>
@@ -163,8 +205,6 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
       </LayoutGroup>
 
       <RescheduleSheet task={moving} onClose={() => setMoving(null)} />
-      <TaskEditor open={adding || !!editing} task={editing} defaultDate={date} onClose={() => (setAdding(false), setEditing(null))} />
-      <AnimatePresence>{!(expanded && tasks[expanded]?.date === date && tasks[expanded]?.status !== 'discarded') && <AddButton onClick={() => setAdding(true)} />}</AnimatePresence>
     </div>
   );
 }
@@ -172,34 +212,18 @@ export function TodayView({ date: dateProp, focusTask }: { date?: string; focusT
 function Item({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      layout
+      layout="position"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 60, height: 0, marginTop: 0, transition: { duration: 0.2 } }}
-      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+      exit={{ opacity: 0, x: 60, transition: { duration: 0.18 } }}
+      transition={spring}
     >
       {children}
     </motion.div>
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  if (!children) return <div className="h-4" />;
-  return <div className="mb-2 mt-5 text-[12px] font-medium uppercase tracking-wide text-muted first:mt-0">{children}</div>;
-}
-
-export function AddButton({ onClick }: { onClick: () => void }) {
-  return (
-    <motion.button
-      initial={{ scale: 0.6, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.6, opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-      aria-label="Add task"
-      onClick={onClick}
-      className="press fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-fg text-bg shadow-lg"
-    >
-      <Icon name="plus" className="h-6 w-6" stroke={2.2} />
-    </motion.button>
-  );
+function Label({ children }: { children: React.ReactNode }) {
+  if (!children) return <div className="h-2" />;
+  return <div className="px-3 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wider text-faint">{children}</div>;
 }

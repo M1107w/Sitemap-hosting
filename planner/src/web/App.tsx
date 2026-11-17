@@ -1,35 +1,58 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { activity, api, dismissToast, loadAll, setAuth, useStore } from './store';
+import { activity, api, closeEditor, dismissToast, getState, loadAll, moveOverdueToTomorrow, openEditor, setAuth, setSleep, useStore } from './store';
 import { navigate, useLocation } from './router';
 import { TodayView } from './TodayView';
 import { MonthView } from './MonthView';
 import { CallScreen, ConsentScreen } from './CallScreen';
 import { SettingsView, TalkView } from './SettingsView';
-import { Icon } from './ui';
+import { TaskEditor } from './sheets';
+import { addDays } from '../shared/time';
+import { Icon, nowMin, softSpring, spring, today } from './ui';
 
 export function App() {
+  return (
+    // "user": respects iOS Reduce Motion; everything else animates with transforms only.
+    <MotionConfig reducedMotion="user">
+      <Shell />
+    </MotionConfig>
+  );
+}
+
+function Shell() {
   const auth = useStore((s) => s.auth);
+  const editor = useStore((s) => s.editor);
   const { path, query } = useLocation();
 
   useEffect(() => {
     const h = () => activity();
+    const vis = () => {
+      if (document.visibilityState !== 'visible') return;
+      activity();
+      if (getState().auth === 'ok') loadAll().catch(() => {});
+    };
+    const msg = (e: MessageEvent) => e.data?.type === 'navigate' && navigate(e.data.url);
     window.addEventListener('pointerdown', h, { passive: true });
-    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (activity(), auth === 'ok' && loadAll().catch(() => {})));
-    navigator.serviceWorker?.addEventListener('message', (e) => e.data?.type === 'navigate' && navigate(e.data.url));
-    return () => window.removeEventListener('pointerdown', h);
-  }, [auth]);
+    document.addEventListener('visibilitychange', vis);
+    navigator.serviceWorker?.addEventListener('message', msg);
+    return () => {
+      window.removeEventListener('pointerdown', h);
+      document.removeEventListener('visibilitychange', vis);
+      navigator.serviceWorker?.removeEventListener('message', msg);
+    };
+  }, []);
 
   if (auth === 'unknown') return <div className="h-full bg-bg" />;
   if (auth !== 'ok') return <Login mode={auth} />;
 
-  let screen: React.ReactNode;
-  let tab: string = path;
   if (path === '/call') {
     const mode = (query.get('mode') as 'checkin' | 'debrief' | 'chat') || 'chat';
     return <CallScreen key={path + query} mode={mode} taskId={query.get('task')} debriefId={query.get('debrief')} />;
   }
   if (path === '/checkin' && query.get('consent')) return <ConsentScreen consentId={query.get('consent')!} />;
+
+  let screen: React.ReactNode;
+  let tab = path;
   if (path.startsWith('/day/')) {
     screen = <TodayView key={path} date={path.slice(5)} />;
     tab = '/month';
@@ -44,62 +67,171 @@ export function App() {
   return (
     <div className="min-h-full bg-bg">
       <AnimatePresence mode="wait" initial={false}>
-        <motion.main key={path} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
+        <motion.main
+          key={path}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+        >
           {screen}
         </motion.main>
       </AnimatePresence>
       <TabBar tab={tab} />
       <Toast />
+      <TaskEditor open={!!editor} task={editor?.task ?? null} defaultDate={editor?.date ?? today()} onClose={closeEditor} />
     </div>
   );
 }
 
+// ------------------------------------------------------------ expandable tab bar
+
+type IconName = Parameters<typeof Icon>[0]['name'];
+
 function TabBar({ tab }: { tab: string }) {
-  const items = [
-    { to: '/', icon: 'today', label: 'Today' },
+  const [open, setOpen] = useState(false);
+  const checkin = useStore((s) => s.checkin);
+  const tz = useStore((s) => s.settings.timezone);
+  const quiet = !!checkin && checkin.quietUntil > Date.now();
+  useEffect(() => setOpen(false), [tab]);
+
+  const tabs: { to: string; icon: IconName; label: string }[] = [
+    { to: '/', icon: 'home', label: 'Today' },
     { to: '/month', icon: 'month', label: 'Month' },
-    { to: '/talk', icon: 'talk', label: 'Talk' },
+    { to: '/talk', icon: 'mic', label: 'Talk' },
     { to: '/settings', icon: 'settings', label: 'Settings' },
-  ] as const;
+  ];
+  const t = today(tz);
+  const actions: { icon: IconName; label: string; tint: string; run: () => void }[] = [
+    { icon: 'plus', label: 'New task', tint: 'text-green bg-green/[0.12]', run: () => openEditor(t) },
+    { icon: 'mic', label: 'Check-in', tint: 'text-cyan bg-cyan/[0.12]', run: () => navigate('/call?mode=chat') },
+    { icon: 'brief', label: 'Debrief now', tint: 'text-purple bg-purple/[0.14]', run: () => navigate('/call?mode=debrief') },
+    { icon: 'moon', label: quiet ? 'Wake up' : 'Going to sleep', tint: 'text-yellow bg-yellow/[0.12]', run: () => setSleep(!quiet) },
+    { icon: 'forward', label: 'Overdue → tomorrow', tint: 'text-red bg-red/[0.13]', run: () => moveOverdueToTomorrow(t, addDays(t, 1), nowMin(tz)) },
+    { icon: 'settings', label: 'Settings', tint: 'text-fg bg-fg/[0.08]', run: () => navigate('/settings') },
+  ];
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/85 pb-safe backdrop-blur-xl">
-      <div className="mx-auto flex max-w-lg">
-        {items.map((it) => (
-          <button key={it.to} onClick={() => navigate(it.to)} className={`flex flex-1 flex-col items-center gap-0.5 pb-1 pt-2 text-[10.5px] transition-colors ${tab === it.to ? 'text-fg' : 'text-muted'}`}>
-            <Icon name={it.icon} className="h-[22px] w-[22px]" stroke={tab === it.to ? 2.1 : 1.7} />
-            {it.label}
-          </button>
-        ))}
+    <>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="scrim"
+            className="fixed inset-0 z-30 bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-5 pb-[max(env(safe-area-inset-bottom),14px)]">
+        <LayoutGroup>
+          <motion.nav
+            layout
+            transition={softSpring}
+            style={{ borderRadius: open ? 30 : 26, willChange: 'transform' }}
+            className={`pointer-events-auto relative overflow-hidden border border-line bg-raised/95 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${open ? 'w-full max-w-md' : ''}`}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              {open ? (
+                <motion.div
+                  key="grid"
+                  layout="position"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+                  className="px-3 pb-3 pt-4"
+                >
+                  <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+                    {actions.map((a, i) => (
+                      <motion.button
+                        key={a.label}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...spring, delay: 0.03 * i }}
+                        onClick={() => {
+                          setOpen(false);
+                          a.run();
+                        }}
+                        className="press flex flex-col items-center gap-2 text-center text-[12px] leading-tight text-fg/85"
+                      >
+                        <span className={`grid h-12 w-12 place-items-center rounded-2xl ${a.tint}`}>
+                          <Icon name={a.icon} className="h-[22px] w-[22px]" stroke={1.9} />
+                        </span>
+                        {a.label}
+                      </motion.button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button aria-label="Close" onClick={() => setOpen(false)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg/[0.08]">
+                      <Icon name="x" className="h-5 w-5" />
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="bar"
+                  layout="position"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.14 }}
+                  className="flex items-center gap-1 p-1.5"
+                >
+                  {tabs.map((it) => (
+                    <button
+                      key={it.to}
+                      aria-label={it.label}
+                      onClick={() => navigate(it.to)}
+                      className={`relative grid h-11 w-12 place-items-center rounded-[18px] transition-colors ${tab === it.to ? 'text-fg' : 'text-faint'}`}
+                    >
+                      {tab === it.to && <motion.span layoutId="tab-pill" transition={spring} className="absolute inset-0 rounded-[18px] bg-fg/[0.08]" />}
+                      <Icon name={it.icon} className="relative h-[22px] w-[22px]" stroke={tab === it.to ? 2 : 1.8} />
+                    </button>
+                  ))}
+                  <button aria-label="More actions" onClick={() => setOpen(true)} className="press ml-1 grid h-11 w-12 place-items-center rounded-[18px] bg-fg text-bg">
+                    <Icon name="plus" className="h-[22px] w-[22px]" stroke={2.3} />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.nav>
+        </LayoutGroup>
       </div>
-    </nav>
+    </>
   );
 }
 
 function Toast() {
   const t = useStore((s) => s.toast);
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-40 flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+86px)] z-40 flex justify-center px-4">
       <AnimatePresence>
         {t && (
           <motion.div
             key={t.id}
-            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            initial={{ opacity: 0, y: 12, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={spring}
             className="pointer-events-auto flex items-center gap-4 rounded-full bg-fg py-2.5 pl-5 pr-2 text-[14px] text-bg shadow-xl"
           >
             <span className="max-w-[60vw] truncate">{t.text}</span>
-            {t.undo && (
+            {t.undo ? (
               <button
                 onClick={() => {
                   t.undo!();
                   dismissToast();
                 }}
-                className="press rounded-full bg-bg/15 px-3 py-1 font-medium"
+                className="press rounded-full bg-bg/10 px-3 py-1 font-medium"
               >
                 Undo
               </button>
+            ) : (
+              <span className="w-2" />
             )}
           </motion.div>
         )}
@@ -133,23 +265,23 @@ function Login({ mode }: { mode: 'setup' | 'login' }) {
   };
   return (
     <div className="flex min-h-full items-center justify-center bg-bg px-6">
-      <motion.form initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onSubmit={submit} className="w-full max-w-xs">
+      <motion.form initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} onSubmit={submit} className="w-full max-w-xs">
         <div className="mb-8 flex items-center gap-3">
-          <img src="/icon.svg" alt="" className="h-10 w-10 rounded-xl" />
+          <img src="/icon.svg" alt="" className="h-11 w-11 rounded-xl" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">SleepyGates</h1>
-            <p className="text-[13px] text-muted">{mode === 'setup' ? 'Create your login' : 'Welcome back'}</p>
+            <h1 className="text-[22px] font-medium tracking-tight">SleepyGates</h1>
+            <p className="text-[13px] text-muted">{mode === 'setup' ? 'Create your login, sir' : 'Welcome back, sir'}</p>
           </div>
         </div>
-        <input autoFocus autoCapitalize="none" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="mb-2 w-full rounded-xl border border-line bg-card px-4 py-3" />
-        <input type="password" autoComplete={mode === 'setup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full rounded-xl border border-line bg-card px-4 py-3" />
+        <input autoFocus autoCapitalize="none" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="mb-2 w-full rounded-2xl border border-line bg-card px-4 py-3.5" />
+        <input type="password" autoComplete={mode === 'setup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full rounded-2xl border border-line bg-card px-4 py-3.5" />
         {mode === 'setup' && (
           <label className="mt-3 flex items-center gap-2 text-[13px] text-muted">
             <input type="checkbox" checked={seed} onChange={(e) => setSeed(e.target.checked)} /> Add a few example tasks
           </label>
         )}
-        {err && <p className="mt-3 text-[13px] text-accent">{err}</p>}
-        <button disabled={busy || !username || !password} className="press mt-5 w-full rounded-xl bg-fg py-3 font-medium text-bg disabled:opacity-40">
+        {err && <p className="mt-3 text-[13px] text-red">{err}</p>}
+        <button disabled={busy || !username || !password} className="press mt-5 w-full rounded-2xl bg-fg py-3.5 font-medium text-bg disabled:opacity-40">
           {mode === 'setup' ? 'Create & open' : 'Log in'}
         </button>
       </motion.form>

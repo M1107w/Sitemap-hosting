@@ -7,6 +7,10 @@ cd "$(dirname "$0")/.."
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 
+say "0/5 Basic tools (Oracle's minimal Ubuntu image leaves these out)"
+sudo apt-get update -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git curl cron iptables iptables-persistent ca-certificates
+
 say "1/5 Docker"
 if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sudo sh
